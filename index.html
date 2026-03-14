@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ComfyUI 控制器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        
+        .status {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+        
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+        
+        input[type="text"],
+        input[type="number"],
+        textarea,
+        select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        input:focus,
+        textarea:focus,
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+        
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .progress {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            display: none;
+        }
+        
+        .progress-bar {
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 15px 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.3s;
+        }
+        
+        .progress-text {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .result {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            display: none;
+        }
+        
+        .result img {
+            max-width: 100%;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+        
+        .log {
+            margin-top: 15px;
+            padding: 15px;
+            background: #1e1e1e;
+            color: #00ff00;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 13px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .log-line {
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 ComfyUI 控制器</h1>
+        <p class="subtitle">AI 图像生成工具</p>
+        
+        <div id="status" class="status disconnected">
+            🔴 未连接到 ComfyUI
+        </div>
+        
+        <div class="form-group">
+            <label for="prompt">正向提示词</label>
+            <textarea id="prompt" placeholder="描述你想要生成的图片，例如：一个美丽的女孩，高清，精致，柔和光线"></textarea>
+        </div>
+        
+        <div class="form-group">
+            <label for="negative">负面提示词</label>
+            <input type="text" id="negative" value="ugly, blurry, low quality, deformed" placeholder="不想要的内容">
+        </div>
+        
+        <div class="row">
+            <div class="form-group">
+                <label for="width">宽度</label>
+                <input type="number" id="width" value="512" min="64" max="2048" step="64">
+            </div>
+            
+            <div class="form-group">
+                <label for="height">高度</label>
+                <input type="number" id="height" value="512" min="64" max="2048" step="64">
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="form-group">
+                <label for="steps">采样步数</label>
+                <input type="number" id="steps" value="20" min="1" max="100">
+            </div>
+            
+            <div class="form-group">
+                <label for="cfg">CFG 值</label>
+                <input type="number" id="cfg" value="7" min="1" max="20" step="0.5">
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label for="seed">随机种子（留空则随机）</label>
+            <input type="number" id="seed" placeholder="例如：12345">
+        </div>
+        
+        <button class="btn" id="generateBtn" onclick="generate()">🚀 开始生成</button>
+        
+        <div class="progress" id="progress">
+            <div class="progress-text" id="progressText">准备中...</div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+        </div>
+        
+        <div class="log" id="log"></div>
+        
+        <div class="result" id="result">
+            <h3>✅ 生成完成!</h3>
+            <div id="resultContent"></div>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = window.location.origin;
+        let ws = null;
+        
+        // 检查连接状态
+        async function checkConnection() {
+            try {
+                const resp = await fetch(`${API_BASE}/system_stats`);
+                if (resp.ok) {
+                    document.getElementById('status').className = 'status connected';
+                    document.getElementById('status').textContent = '🟢 已连接到 ComfyUI';
+                    return true;
+                }
+            } catch (e) {
+                document.getElementById('status').className = 'status disconnected';
+                document.getElementById('status').textContent = '🔴 未连接到 ComfyUI';
+            }
+            return false;
+        }
+        
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            const time = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `<div class="log-line">[${time}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        async function generate() {
+            const prompt = document.getElementById('prompt').value.trim();
+            if (!prompt) {
+                alert('请输入正向提示词!');
+                return;
+            }
+            
+            const btn = document.getElementById('generateBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ 生成中...';
+            
+            document.getElementById('progress').style.display = 'block';
+            document.getElementById('result').style.display = 'none';
+            document.getElementById('log').innerHTML = '';
+            
+            log('开始生成任务...');
+            
+            try {
+                // 创建工作流
+                const workflow = {
+                    "3": {
+                        "class_type": "KSampler",
+                        "inputs": {
+                            "cfg": parseFloat(document.getElementById('cfg').value),
+                            "denoise": 1,
+                            "latent_image": ["5", 0],
+                            "model": ["4", 0],
+                            "negative": ["7", 0],
+                            "positive": ["6", 0],
+                            "sampler_name": "euler",
+                            "scheduler": "normal",
+                            "seed": parseInt(document.getElementById('seed').value) || Math.floor(Math.random() * 1000000),
+                            "steps": parseInt(document.getElementById('steps').value)
+                        }
+                    },
+                    "4": {
+                        "class_type": "CheckpointLoaderSimple",
+                        "inputs": {
+                            "ckpt_name": "v1-5-pruned-emaonly.ckpt"
+                        }
+                    },
+                    "5": {
+                        "class_type": "EmptyLatentImage",
+                        "inputs": {
+                            "batch_size": 1,
+                            "height": parseInt(document.getElementById('height').value),
+                            "width": parseInt(document.getElementById('width').value)
+                        }
+                    },
+                    "6": {
+                        "class_type": "CLIPTextEncode",
+                        "inputs": {
+                            "clip": ["4", 1],
+                            "text": prompt
+                        }
+                    },
+                    "7": {
+                        "class_type": "CLIPTextEncode",
+                        "inputs": {
+                            "clip": ["4", 1],
+                            "text": document.getElementById('negative').value
+                        }
+                    },
+                    "8": {
+                        "class_type": "VAEDecode",
+                        "inputs": {
+                            "samples": ["3", 0],
+                            "vae": ["4", 2]
+                        }
+                    },
+                    "9": {
+                        "class_type": "SaveImage",
+                        "inputs": {
+                            "filename_prefix": "ComfyUI",
+                            "images": ["8", 0]
+                        }
+                    }
+                };
+                
+                // 提交任务
+                const resp = await fetch(`${API_BASE}/prompt`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        prompt: workflow,
+                        client_id: 'web-' + Math.random().toString(36).substr(2, 9)
+                    })
+                });
+                
+                const data = await resp.json();
+                const promptId = data.prompt_id;
+                
+                log(`任务已提交 (ID: ${promptId})`);
+                
+                // 连接 WebSocket 监控进度
+                ws = new WebSocket(`ws://${window.location.host}/ws?clientId=web-${Math.random().toString(36).substr(2, 9)}`);
+                
+                ws.onmessage = (event) => {
+                    const msg = JSON.parse(event.data);
+                    
+                    if (msg.type === 'progress') {
+                        const percent = Math.round(msg.data.value / msg.data.max * 100);
+                        document.getElementById('progressFill').style.width = percent + '%';
+                        document.getElementById('progressText').textContent = `生成进度：${percent}%`;
+                        log(`进度：${percent}%`);
+                    }
+                    
+                    if (msg.type === 'executing') {
+                        if (msg.data.node === null) {
+                            log('✅ 生成完成!');
+                            downloadImages(promptId);
+                        } else {
+                            log(`执行节点：${msg.data.node}`);
+                        }
+                    }
+                };
+                
+                ws.onerror = (e) => {
+                    log('WebSocket 错误');
+                    btn.disabled = false;
+                    btn.textContent = '🚀 开始生成';
+                };
+                
+            } catch (e) {
+                log(`错误：${e.message}`);
+                btn.disabled = false;
+                btn.textContent = '🚀 开始生成';
+            }
+        }
+        
+        async function downloadImages(promptId) {
+            log('正在获取结果...');
+            
+            try {
+                const resp = await fetch(`${API_BASE}/history/${promptId}`);
+                const history = await resp.json();
+                
+                if (history[promptId] && history[promptId].outputs) {
+                    const outputs = history[promptId].outputs;
+                    let imageHtml = '';
+                    
+                    for (const nodeId in outputs) {
+                        if (outputs[nodeId].images) {
+                            for (const img of outputs[nodeId].images) {
+                                const url = `${API_BASE}/view?filename=${img.filename}&subfolder=${img.subfolder}&type=${img.type}`;
+                                imageHtml += `<img src="${url}" alt="Generated Image">`;
+                            }
+                        }
+                    }
+                    
+                    document.getElementById('resultContent').innerHTML = imageHtml;
+                    document.getElementById('result').style.display = 'block';
+                    log('图片已保存!');
+                }
+            } catch (e) {
+                log(`下载失败：${e.message}`);
+            }
+            
+            document.getElementById('generateBtn').disabled = false;
+            document.getElementById('generateBtn').textContent = '🚀 开始生成';
+        }
+        
+        // 页面加载时检查连接
+        checkConnection();
+        setInterval(checkConnection, 30000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,46 @@
+{
+  "workflows": [
+    {
+      "id": "txt2img_示例文生图_20260314_223724",
+      "name": "示例文生图",
+      "category": "txt2img",
+      "description": "一个简单的文生图工作流示例",
+      "file_path": "/Users/apple/Documents/lmd_data_root/apps/comfyui-controller/workflows/txt2img/txt2img_示例文生图_20260314_223724.json",
+      "created_at": "2026-03-14T22:37:24.312317",
+      "prompt_nodes": [
+        {
+          "node_id": "6",
+          "type": "positive",
+          "default_text": "一个美丽的女孩，高清，精致，高质量"
+        },
+        {
+          "node_id": "7",
+          "type": "positive",
+          "default_text": "模糊，低质量，变形，丑陋"
+        }
+      ],
+      "model_nodes": [
+        {
+          "node_id": "4",
+          "class_type": "CheckpointLoaderSimple",
+          "model_name": "v1-5-pruned-emaonly.ckpt"
+        }
+      ],
+      "parameter_nodes": {
+        "sampler": {
+          "node_id": "3",
+          "steps": 20,
+          "cfg": 7,
+          "sampler_name": "euler",
+          "scheduler": "normal"
+        },
+        "resolution": {
+          "node_id": "5",
+          "width": 512,
+          "height": 512,
+          "batch_size": 1
+        }
+      }
+    }
+  ]
+}

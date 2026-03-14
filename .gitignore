@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Logs
+*.log
+
+# Environment variables
+.env
+.env.local
+
+# Sensitive files
+*.key
+*.pem
+*.crt
+secrets.json
+config.local.json
+
+# ComfyUI specific
+output/
+input/
+temp/
+*.json.backup
