@@ -1,0 +1,101 @@
+# 仙人古装新闻视频 - 提示词列表
+
+## 使用说明
+
+1. 打开 ComfyUI: http://localhost:8189
+2. 加载工作流：`ltx2_t2v_gguf.json`
+3. 复制以下提示词到对应的 CLIPTextEncode 节点
+4. 点击 "Queue Prompt" 生成
+
+---
+
+## 新闻 1: 两会召开
+
+**正向提示词:**
+```
+仙界大会，众仙朝拜，仙山楼阁，祥云缭绕，仙侠风格，古装仙人，白色长袍，仙风道骨，宏伟壮观，电影感，史诗感，中国风，传统美学，8K
+```
+
+**负面提示词:**
+```
+blurry, low quality, still frame, modern clothes, suit, modern building, watermark, titles, subtitles, text, logo
+```
+
+---
+
+## 新闻 2: 汪峰演唱会
+
+**正向提示词:**
+```
+仙界音乐盛会，古装仙人抚琴，仙乐飘飘，霓虹仙灯，仙侠演唱会，华丽舞台，音乐仙境，动态表演，电影感，史诗感，中国风
+```
+
+**负面提示词:**
+```
+blurry, low quality, still frame, modern clothes, microphone, stage equipment, watermark, titles, text, logo
+```
+
+---
+
+## 新闻 3: 海洋经济
+
+**正向提示词:**
+```
+东海龙宫，蛟龙出海，仙侠风格，古装仙人御海，蓝色仙法，海浪翻滚，史诗感，动态海浪，电影感，中国神话，传统美学
+```
+
+**负面提示词:**
+```
+blurry, low quality, still frame, modern ship, boat, oil rig, watermark, titles, subtitles, text, logo
+```
+
+---
+
+## 新闻 4: 西湖马拉松
+
+**正向提示词:**
+```
+仙人御剑飞行比赛，西湖仙境，古装仙人竞速，桃花盛开，仙侠风格，动态飞行，湖光山色，电影感，中国风，传统美学，春天
+```
+
+**负面提示词:**
+```
+blurry, low quality, still frame, modern clothes, running, marathon, cars, road, watermark, titles, text, logo
+```
+
+---
+
+## 新闻 5: 人工智能
+
+**正向提示词:**
+```
+仙界炼丹炉，AI 仙法阵，古装仙人操控仙术科技，仙侠与科技融合，神秘符文，动态光效，电影感，科幻仙侠，中国风，未来感
+```
+
+**负面提示词:**
+```
+blurry, low quality, still frame, computer, modern tech, electronics, watermark, titles, subtitles, text, logo
+```
+
+---
+
+## 通用参数建议
+
+- **分辨率**: 768x512 或 1024x576
+- **帧数**: 97-151 帧（约 4-6 秒）
+- **帧率**: 24-25 fps
+- **采样步数**: 25-31 步
+- **CFG**: 4-7
+- **种子**: 随机或固定
+
+---
+
+## 输出目录
+
+`~/Downloads/xianxia_ltx2_news/`
+
+---
+
+**创建时间**: 2026-03-15  
+**模型**: LTX-2-19B-GGUF  
+**风格**: 仙人古装
