@@ -21,10 +21,6 @@ SCENARIOS = [
     {
         "title": "优雅芭蕾",
         "prompt": "A beautiful young girl performing elegant ballet dance, graceful movements, pink tutu, ballet shoes, spotlight on stage, cinematic lighting, high quality, detailed",
-    },
-    {
-        "title": "街头街舞",
-        "prompt": "A beautiful young girl doing hip hop street dance, dynamic movements, urban background, trendy outfit, energetic, cool attitude, cinematic, high quality",
     }
 ]
 
