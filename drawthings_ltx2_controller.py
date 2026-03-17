@@ -47,57 +47,30 @@ class DrawThingsController:
     
     def load_ltx2_model(self):
         """加载 LTX-2 模型"""
-        script = f'''
-        tell application "{self.app_name}"
-            activate
-            try
-                -- 选择 LTX-Video 模型
-                set current model to "LTX-Video"
-                return "OK"
-            catch
-                return "ERROR"
-            end try
-        end tell
-        '''
+        script = f'''tell application "{self.app_name}"
+    activate
+    try
+        set current model to "LTX-Video"
+        return "OK"
+    on error
+        return "ERROR"
+    end try
+end tell'''
         return self.run_applescript(script)
     
     def generate_video(self, prompt, negative="", width=768, height=512, frames=97):
         """生成视频"""
-        script = f'''
-        tell application "{self.app_name}"
-            activate
-            try
-                -- 设置模型为 LTX-Video
-                set current model to "LTX-Video"
-                
-                -- 设置提示词
-                set positive prompt to "{prompt}"
-                if "{negative}" is not "" then
-                    set negative prompt to "{negative}"
-                end if
-                
-                -- 设置参数
-                set width to {width}
-                set height to {height}
-                set steps to 31
-                set cfg to 4.0
-                
-                -- 生成视频
-                generate video with {{
-                    prompt: positive prompt,
-                    negative prompt: (if "{negative}" is "" then "" else negative prompt),
-                    width: width,
-                    height: height,
-                    frames: {frames},
-                    fps: 25
-                }}
-                
-                return "STARTED"
-            catch errMsg
-                return "ERROR: " & errMsg
-            end try
-        end tell
-        '''
+        script = f'''tell application "{self.app_name}"
+    activate
+    try
+        set current model to "LTX-Video"
+        set positive prompt to "{prompt}"
+        generate video with {{prompt:positive prompt, width:{width}, height:{height}, frames:{frames}}}
+        return "STARTED"
+    on error errMsg
+        return "ERROR: " & errMsg
+    end try
+end tell'''
         return self.run_applescript(script)
     
     def wait_for_completion(self, timeout=600):
