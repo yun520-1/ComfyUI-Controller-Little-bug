@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>ClawHub 上传 - ComfyUI 智能控制器</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
+        .step { margin: 20px 0; padding: 15px; background: #f5f5f5; border-radius: 5px; }
+        .code { background: #333; color: #0f0; padding: 10px; border-radius: 3px; font-family: monospace; }
+        .success { color: green; }
+        .info { color: #666; }
+    </style>
+</head>
+<body>
+    <h1>🚀 ClawHub 技能上传</h1>
+    
+    <div class="step">
+        <h2>✅ 发布包已准备</h2>
+        <p><strong>文件:</strong> dist/comfyui-controller-v2.0.0.zip</p>
+        <p><strong>大小:</strong> 21KB</p>
+        <p><strong>位置:</strong> /Users/apple/.jvs/.openclaw/workspace/ComfyUI-Controller-Little-bug/dist/</p>
+    </div>
+    
+    <div class="step">
+        <h2>📋 上传步骤</h2>
+        <ol>
+            <li>访问 <a href="https://clawhub.ai/" target="_blank">https://clawhub.ai/</a></li>
+            <li>登录账号 (已完成 ✅)</li>
+            <li>点击"发布技能"或"Create Skill"</li>
+            <li>填写信息:
+                <ul>
+                    <li><strong>名称:</strong> ComfyUI 智能控制器</li>
+                    <li><strong>Slug:</strong> comfyui-controller</li>
+                    <li><strong>版本:</strong> 2.0.0</li>
+                    <li><strong>描述:</strong> ComfyUI 智能控制器 - 自动发现模型和工作流，智能执行图片和视频生成</li>
+                    <li><strong>标签:</strong> comfyui, ai, image-generation, video, automation</li>
+                </ul>
+            </li>
+            <li>上传文件: <code>dist/comfyui-controller-v2.0.0.zip</code></li>
+            <li>点击发布</li>
+        </ol>
+    </div>
+    
+    <div class="step">
+        <h2>📦 发布包内容</h2>
+        <ul>
+            <li>comfyui_auto_discovery.py - 自动发现系统</li>
+            <li>comfyui_smart_executor.py - 智能执行器</li>
+            <li>comfyui_monitor.py - 监控器</li>
+            <li>comfyui_smart_controller_fixed.py - 控制器</li>
+            <li>README-智能技能.md - 使用文档</li>
+            <li>SKILL.md - 技能说明</li>
+            <li>发现报告.md - 发现报告</li>
+        </ul>
+    </div>
+    
+    <div class="step">
+        <h2>🎯 快速验证</h2>
+        <div class="code">
+# 安装后验证<br>
+clawhub install comfyui-controller<br>
+python3 -c "from comfyui_smart_executor import SmartExecutor; e=SmartExecutor(); print('✅ 成功')"<br>
+        </div>
+    </div>
+    
+    <p class="info">提示：你也可以在浏览器控制台使用 JavaScript 自动上传 (需要 API 访问)</p>
+</body>
+</html>
