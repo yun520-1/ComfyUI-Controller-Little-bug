@@ -39,7 +39,7 @@ def convert_to_api(wf_json, prompt_text, width=1024, height=512, seed=None):
     """将 ComfyUI 工作流 JSON 转换为 API 格式"""
     nodes = wf_json.get('nodes', [])
     links = wf_json.get('links', [])
-    
+
     # 构建链接映射
     link_map = {}
     for link in links:
@@ -47,60 +47,60 @@ def convert_to_api(wf_json, prompt_text, width=1024, height=512, seed=None):
         if tgt_node not in link_map:
             link_map[tgt_node] = {}
         link_map[tgt_node][tgt_slot] = [str(src_node), src_slot]
-    
+
     api_workflow = {}
-    
+
     for node in nodes:
         node_id = str(node.get('id'))
         node_type = node.get('type')
-        
+
         # 跳过 Note 节点
         if node_type == 'Note':
             continue
-        
+
         inputs_raw = node.get('inputs', [])
         widgets_values = node.get('widgets_values', [])
-        
+
         inputs_dict = {}
-        
+
         # 处理有链接的 inputs
         for inp in inputs_raw:
             name = inp.get('name')
             link_id = inp.get('link')
-            
+
             if link_id is not None:
                 for link in links:
                     if link[0] == link_id:
                         src_node, src_slot = link[1], link[2]
                         inputs_dict[name] = [str(src_node), src_slot]
                         break
-        
+
         # 处理 widgets_values（按顺序对应无链接的 inputs）
         widget_idx = 0
         for inp in inputs_raw:
             name = inp.get('name')
             link_id = inp.get('link')
-            
+
             if link_id is None and widget_idx < len(widgets_values):
                 inputs_dict[name] = widgets_values[widget_idx]
                 widget_idx += 1
-        
+
         api_workflow[node_id] = {
             'class_type': node_type,
             'inputs': inputs_dict
         }
-    
+
     # 修改提示词（节点 6 是正向，节点 7 是负向）
     if '6' in api_workflow:
         api_workflow['6']['inputs']['text'] = f"You are an assistant creating high quality images.\n\n<Prompt Start>\n{prompt_text}"
     if '7' in api_workflow:
         api_workflow['7']['inputs']['text'] = "blurry ugly bad"
-    
+
     # 修改尺寸（节点 13）
     if '13' in api_workflow:
         api_workflow['13']['inputs']['width'] = width
         api_workflow['13']['inputs']['height'] = height
-    
+
     # 修改种子（节点 3）
     if seed and '3' in api_workflow:
         inputs = api_workflow['3']['inputs']
@@ -111,7 +111,7 @@ def convert_to_api(wf_json, prompt_text, width=1024, height=512, seed=None):
         inputs['steps'] = 20
         inputs['cfg'] = 7.0
         inputs['denoise'] = 1.0
-    
+
     return api_workflow
 
 
@@ -189,15 +189,15 @@ def generate(scenario, idx):
     print(f"\n{'='*60}")
     print(f"[{idx}/2] {scenario['title']}")
     print(f"{'='*60}")
-    
+
     wf_json = load_workflow_json()
     seed = int(time.time() * 1000) % 1000000
     api_wf = convert_to_api(wf_json, scenario['prompt'], 1024, 512, seed)
-    
+
     pid = queue_prompt(api_wf, client_id)
     if not pid:
         return False
-    
+
     if wait_completion(pid):
         fp = download_image(pid)
         if fp:
@@ -211,7 +211,7 @@ def main():
     print("😂 搞笑美女图片生成器 (本地工作流版)")
     print("=" * 60)
     print()
-    
+
     print("🔍 检查 ComfyUI...")
     try:
         r = requests.get("http://127.0.0.1:8188/system_stats", timeout=5)
@@ -220,18 +220,18 @@ def main():
     except:
         print("❌ 未运行")
         return
-    
+
     print(f"\n📄 工作流：{WORKFLOW_FILE.name}")
     print(f"📐 尺寸：1024x512")
     print(f"📁 输出：{OUTPUT}/")
     print()
-    
+
     ok = 0
     for i, s in enumerate(SCENARIOS, 1):
         if generate(s, i):
             ok += 1
         time.sleep(3)
-    
+
     print()
     print("=" * 60)
     print(f"成功：{ok}/{len(SCENARIOS)}")

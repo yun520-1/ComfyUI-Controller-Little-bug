@@ -32,7 +32,7 @@ def update_workflow(workflow_path, prompt, negative, output_path):
     """更新工作流提示词并保存"""
     with open(workflow_path, 'r', encoding='utf-8') as f:
         workflow = json.load(f)
-    
+
     for node in workflow.get("nodes", []):
         if node.get("type") == "CLIPTextEncode":
             widgets = node.get("widgets_values", [])
@@ -41,10 +41,10 @@ def update_workflow(workflow_path, prompt, negative, output_path):
                     node["widgets_values"][0] = negative
                 else:
                     node["widgets_values"][0] = prompt
-    
+
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(workflow, f, ensure_ascii=False, indent=2)
-    
+
     return output_path
 
 
@@ -52,7 +52,7 @@ def run_comfyui_workflow(workflow_path):
     """运行 ComfyUI 工作流"""
     print(f"\n🚀 运行 ComfyUI 工作流...")
     print(f"   📁 {workflow_path}")
-    
+
     # 使用 main.py 执行
     cmd = [
         str(PYTHON),
@@ -62,9 +62,9 @@ def run_comfyui_workflow(workflow_path):
         "--workflow", str(workflow_path),
         "--output-directory", str(OUTPUT_DIR)
     ]
-    
+
     print(f"   命令：{' '.join(cmd)}")
-    
+
     try:
         result = subprocess.run(
             cmd,
@@ -73,7 +73,7 @@ def run_comfyui_workflow(workflow_path):
             text=True,
             timeout=600
         )
-        
+
         if result.returncode == 0:
             print(f"   ✅ 完成")
             return True
@@ -89,22 +89,22 @@ def main():
     print("="*70)
     print("🎬 LTX2 仙人古装新闻视频 - 本地运行")
     print("="*70)
-    
+
     if not WORKFLOW_FILE.exists():
         print(f"❌ 工作流不存在：{WORKFLOW_FILE}")
         return 1
-    
+
     print(f"\n✅ 工作流：{WORKFLOW_FILE.name}")
     print(f"💾 输出：{OUTPUT_DIR}")
-    
+
     # 显示主题
     print(f"\n📋 主题 ({len(NEWS_TOPICS)}个):")
     for i, t in enumerate(NEWS_TOPICS, 1):
         print(f"  {i}. {t['title']}")
-    
+
     # 选择
     choice = input("\n请选择 (1 所有/2 单个/3 测试): ").strip()
-    
+
     topics = []
     if choice == '1':
         topics = NEWS_TOPICS
@@ -113,35 +113,35 @@ def main():
         topics = [NEWS_TOPICS[idx-1]] if 1 <= idx <= 5 else []
     elif choice == '3':
         topics = [NEWS_TOPICS[0]]
-    
+
     if not topics:
         return 1
-    
+
     # 生成
     results = []
     for i, topic in enumerate(topics, 1):
         print(f"\n{'='*70}")
         print(f"[{i}/{len(topics)}] 📰 {topic['title']}")
         print(f"{'='*70}")
-        
+
         # 保存更新的工作流
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         safe_title = topic['title'].replace(" ", "_")
         temp_workflow = OUTPUT_DIR / f"workflow_{safe_title}_{ts}.json"
-        
+
         print(f"\n🔄 更新提示词...")
         update_workflow(WORKFLOW_FILE, topic['prompt'], topic['negative'], temp_workflow)
         print(f"   💾 {temp_workflow.name}")
-        
+
         # 运行
         success = run_comfyui_workflow(temp_workflow)
         results.append({"title": topic['title'], "success": success})
-    
+
     # 汇总
     print(f"\n{'='*70}")
     success = sum(1 for r in results if r.get('success'))
     print(f"✅ 成功：{success}/{len(results)}")
-    
+
     return 0
 
 

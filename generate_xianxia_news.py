@@ -31,7 +31,7 @@ def create_workflow(prompt, width=1024, height=512):
     """创建工作流"""
     style_prompt = prompt + "，仙侠风格，古装，精致，高清，电影感，中国风，传统美学，8K"
     negative = "现代服装，西装，现代建筑，低质量，模糊，变形，丑陋，照片"
-    
+
     return {
         "3": {"class_type": "KSampler", "inputs": {"cfg": 7, "denoise": 1, "latent_image": ["5", 0], "model": ["4", 0], "negative": ["7", 0], "positive": ["6", 0], "sampler_name": "euler_ancestral", "scheduler": "normal", "seed": int(time.time() * 1000) % 1000000, "steps": 25}},
         "4": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": "v1-5-pruned-emaonly.ckpt"}},
@@ -59,10 +59,10 @@ def monitor_progress(prompt_id):
     try:
         ws = websocket.WebSocket()
         ws.connect(f"ws://{COMFYUI_SERVER}/ws?clientId={client_id}", timeout=10)
-        
+
         print(f"⏳ 生成中...", end=" ", flush=True)
         start_time = time.time()
-        
+
         while time.time() - start_time < 300:
             try:
                 msg = json.loads(ws.recv())
@@ -77,7 +77,7 @@ def monitor_progress(prompt_id):
                     return True
             except:
                 continue
-        
+
         ws.close()
         return False
     except Exception as e:
@@ -89,33 +89,33 @@ def download_result(prompt_id, news_title):
     try:
         resp = requests.get(f"http://{COMFYUI_SERVER}/history/{prompt_id}", timeout=5)
         history = resp.json()
-        
+
         if prompt_id not in history:
             return []
-        
+
         outputs = history[prompt_id].get('outputs', {})
         downloaded = []
-        
+
         for node_id, node_output in outputs.items():
             if 'images' in node_output:
                 for img in node_output['images']:
                     if 'filename' in img:
                         params = {'filename': img['filename'], 'subfolder': img.get('subfolder', ''), 'type': img.get('type', 'output')}
                         url = f"http://{COMFYUI_SERVER}/view?{json.dumps(params)}"
-                        
+
                         resp = requests.get(url, timeout=30)
                         if resp.status_code == 200:
                             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                             safe_title = news_title.replace(" ", "_")
                             filename = f"{timestamp}_{safe_title}_{img['filename']}"
                             save_path = OUTPUT_DIR / filename
-                            
+
                             with open(save_path, 'wb') as f:
                                 f.write(resp.content)
-                            
+
                             print(f"  ✅ {filename}")
                             downloaded.append(str(save_path))
-        
+
         return downloaded
     except Exception as e:
         print(f"❌ 下载失败：{e}")
@@ -126,7 +126,7 @@ def main():
     print("🎬 仙人古装风格新闻图片生成器")
     print("📅 2026 年 3 月最新新闻")
     print("="*60)
-    
+
     # 检查连接
     try:
         resp = requests.get(f"http://{COMFYUI_SERVER}/system_stats", timeout=5)
@@ -137,31 +137,31 @@ def main():
     except:
         print("❌ 无法连接 ComfyUI")
         return 1
-    
+
     print(f"\n📋 新闻主题：{len(NEWS_TOPICS)}个")
     print(f"💾 输出目录：{OUTPUT_DIR}")
     print(f"\n开始生成...\n")
-    
+
     results = []
     for i, topic in enumerate(NEWS_TOPICS, 1):
         print(f"[{i}/{len(NEWS_TOPICS)}] {topic['title']}")
-        
+
         # 创建工作流
         workflow = create_workflow(topic['prompt'])
-        
+
         # 提交
         prompt_id = queue_prompt(workflow)
         if not prompt_id:
             print(f"  ❌ 提交失败\n")
             results.append({"title": topic['title'], "success": False})
             continue
-        
+
         # 监控
         if not monitor_progress(prompt_id):
             print(f"  ❌ 生成失败\n")
             results.append({"title": topic['title'], "success": False})
             continue
-        
+
         # 下载
         files = download_result(prompt_id, topic['title'])
         if files:
@@ -170,11 +170,11 @@ def main():
         else:
             print(f"  ❌ 下载失败\n")
             results.append({"title": topic['title'], "success": False})
-        
+
         # 等待
         if i < len(NEWS_TOPICS):
             time.sleep(1)
-    
+
     # 汇总
     print("\n" + "="*60)
     print("📊 生成结果汇总")
@@ -182,14 +182,14 @@ def main():
     success = sum(1 for r in results if r.get('success'))
     print(f"✅ 成功：{success}/{len(results)}")
     print(f"💾 目录：{OUTPUT_DIR}")
-    
+
     # 保存报告
     report = {"timestamp": datetime.now().isoformat(), "total": len(results), "success": success, "results": results}
     report_file = OUTPUT_DIR / f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     with open(report_file, 'w', encoding='utf-8') as f:
         json.dump(report, f, ensure_ascii=False, indent=2)
     print(f"📄 报告：{report_file}")
-    
+
     return 0
 
 if __name__ == "__main__":

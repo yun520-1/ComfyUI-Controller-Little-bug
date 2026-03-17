@@ -22,7 +22,7 @@ import requests
 
 class LocalComfyUIManager:
     """本地 ComfyUI 资源管理器"""
-    
+
     # 常见的 ComfyUI 安装路径
     POSSIBLE_PATHS = [
         Path.home() / "ComfyUI",
@@ -32,7 +32,7 @@ class LocalComfyUIManager:
         Path("/usr/local/ComfyUI"),
         Path.home() / "sdwebui" / "ComfyUI",
     ]
-    
+
     # 模型目录映射
     MODEL_DIRS = {
         "checkpoints": "models/checkpoints",
@@ -64,24 +64,24 @@ class LocalComfyUIManager:
         "diffusion_models": "models/diffusion_models",
         "unet": "models/unet",
     }
-    
+
     def __init__(self):
         self.comfyui_path = None
         self.system_info = {}
         self.available_models = {}
         self.available_workflows = {}
-        
+
     def find_comfyui(self) -> Optional[Path]:
         """查找本地 ComfyUI 安装路径"""
         print("\n🔍 正在查找 ComfyUI 安装...")
-        
+
         # 检查常见路径
         for path in self.POSSIBLE_PATHS:
             if path.exists() and (path / "main.py").exists():
                 print(f"✅ 找到 ComfyUI: {path}")
                 self.comfyui_path = path
                 return path
-        
+
         # 检查环境变量
         env_path = os.environ.get("COMFYUI_PATH")
         if env_path:
@@ -90,7 +90,7 @@ class LocalComfyUIManager:
                 print(f"✅ 通过环境变量找到 ComfyUI: {path}")
                 self.comfyui_path = path
                 return path
-        
+
         # 尝试从运行进程查找
         try:
             result = subprocess.run(
@@ -115,14 +115,14 @@ class LocalComfyUIManager:
                         pass
         except:
             pass
-        
+
         print("❌ 未找到 ComfyUI 安装")
         return None
-    
+
     def detect_system_config(self) -> Dict:
         """检测系统配置"""
         print("\n💻 检测系统配置...")
-        
+
         config = {
             "os": platform.system(),
             "os_version": platform.version(),
@@ -136,7 +136,7 @@ class LocalComfyUIManager:
             "cuda_available": False,
             "recommended_models": []
         }
-        
+
         # 内存信息
         try:
             if platform.system() == "Darwin":  # macOS
@@ -149,7 +149,7 @@ class LocalComfyUIManager:
                 if result.returncode == 0:
                     total_mem = int(result.stdout.strip())
                     config["total_memory"] = f"{total_mem / (1024**3):.1f} GB"
-                    
+
                 # 获取存储信息
                 result = subprocess.run(
                     ["df", "-h", "/"],
@@ -162,7 +162,7 @@ class LocalComfyUIManager:
                         parts = lines[1].split()
                         if len(parts) >= 4:
                             config["available_storage"] = parts[3]
-                
+
                 # 检测 GPU (macOS)
                 result = subprocess.run(
                     ["system_profiler", "SPDisplaysDataType"],
@@ -203,7 +203,7 @@ class LocalComfyUIManager:
                         config["cuda_available"] = True
                     elif "AMD" in output:
                         config["gpu"] = "AMD"
-                        
+
             elif platform.system() == "Linux":
                 # Linux 系统
                 result = subprocess.run(
@@ -217,7 +217,7 @@ class LocalComfyUIManager:
                         parts = lines[1].split()
                         if len(parts) >= 2:
                             config["total_memory"] = parts[1]
-                
+
                 # GPU 信息
                 result = subprocess.run(
                     ["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader"],
@@ -239,7 +239,7 @@ class LocalComfyUIManager:
                     )
                     if result.returncode == 0:
                         config["gpu"] = "AMD ROCm"
-                
+
                 # 存储信息
                 result = subprocess.run(
                     ["df", "-h", "/"],
@@ -252,13 +252,13 @@ class LocalComfyUIManager:
                         parts = lines[1].split()
                         if len(parts) >= 4:
                             config["available_storage"] = parts[3]
-                            
+
             elif platform.system() == "Windows":
                 # Windows 系统
                 import ctypes
                 kernel32 = ctypes.windll.kernel32
                 c_ulonglong = ctypes.c_ulonglong
-                
+
                 class MEMORYSTATUSEX(ctypes.Structure):
                     _fields_ = [
                         ('dwLength', ctypes.c_ulong),
@@ -271,12 +271,12 @@ class LocalComfyUIManager:
                         ('ullAvailVirtual', c_ulonglong),
                         ('ullAvailExtendedVirtual', c_ulonglong),
                     ]
-                
+
                 memoryStatus = MEMORYSTATUSEX()
                 memoryStatus.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
                 if kernel32.GlobalMemoryStatusEx(ctypes.byref(memoryStatus)):
                     config["total_memory"] = f"{memoryStatus.ullTotalPhys / (1024**3):.1f} GB"
-                
+
                 # GPU 信息 (WMI)
                 try:
                     import wmi
@@ -289,7 +289,7 @@ class LocalComfyUIManager:
                             config["cuda_available"] = "NVIDIA" in gpu.Name
                 except:
                     pass
-                
+
                 # 存储信息
                 result = subprocess.run(
                     ["wmic", "logicaldisk", "get", "freespace,size"],
@@ -303,12 +303,12 @@ class LocalComfyUIManager:
                         if len(parts) >= 2:
                             free_gb = int(parts[0]) / (1024**3)
                             config["available_storage"] = f"{free_gb:.1f} GB"
-        
+
         except Exception as e:
             print(f"⚠️  检测系统配置时出错：{e}")
-        
+
         self.system_info = config
-        
+
         # 打印配置
         print(f"\n📊 系统配置:")
         print(f"   操作系统：{config['os']} {config['os_version']}")
@@ -318,31 +318,31 @@ class LocalComfyUIManager:
         print(f"   显存：{config['gpu_memory'] or '共享内存'}")
         print(f"   可用存储：{config['available_storage'] or '未知'}")
         print(f"   CUDA: {'✅ 支持' if config['cuda_available'] else '❌ 不支持'}")
-        
+
         if config['recommended_models']:
             print(f"\n💡 推荐模型:")
             for model in config['recommended_models']:
                 print(f"   - {model}")
-        
+
         return config
-    
+
     def scan_models(self) -> Dict:
         """扫描本地模型"""
         if not self.comfyui_path:
             print("❌ ComfyUI 路径未设置，无法扫描模型")
             return {}
-        
+
         print(f"\n📦 扫描 ComfyUI 模型 ({self.comfyui_path})...")
-        
+
         models = {}
-        
+
         for model_type, rel_path in self.MODEL_DIRS.items():
             model_dir = self.comfyui_path / rel_path
             if model_dir.exists():
                 files = []
                 for ext in ["*.ckpt", "*.safetensors", "*.pt", "*.pth"]:
                     files.extend(list(model_dir.glob(ext)))
-                
+
                 if files:
                     models[model_type] = {
                         "path": str(model_dir),
@@ -350,29 +350,29 @@ class LocalComfyUIManager:
                         "files": [f.name for f in files[:20]]  # 只列前 20 个
                     }
                     print(f"   ✅ {model_type}: {len(files)} 个模型")
-        
+
         self.available_models = models
         return models
-    
+
     def scan_workflows(self) -> Dict:
         """扫描本地工作流"""
         if not self.comfyui_path:
             return {}
-        
+
         print(f"\n📋 扫描 ComfyUI 工作流...")
-        
+
         workflows = {
             "embedded": [],  # ComfyUI 内置工作流
             "custom": []     # 用户自定义工作流
         }
-        
+
         # 扫描用户工作流目录
         workflow_dirs = [
             self.comfyui_path / "workflows",
             self.comfyui_path / "output" / "workflows",
             Path.home() / "ComfyUI" / "workflows",
         ]
-        
+
         for wf_dir in workflow_dirs:
             if wf_dir.exists():
                 for wf_file in wf_dir.glob("*.json"):
@@ -386,17 +386,17 @@ class LocalComfyUIManager:
                             })
                     except:
                         pass
-        
+
         print(f"   找到 {len(workflows['custom'])} 个自定义工作流")
-        
+
         self.available_workflows = workflows
         return workflows
-    
+
     def check_model_compatibility(self, model_name: str) -> Dict:
         """检查模型与系统配置的兼容性"""
         if not self.system_info:
             self.detect_system_config()
-        
+
         # 常见模型大小和配置要求
         model_requirements = {
             "SD 1.5": {"vram": 4, "ram": 8, "storage": 4},
@@ -408,22 +408,22 @@ class LocalComfyUIManager:
             "Playground v2.5": {"vram": 8, "ram": 16, "storage": 8},
             "Stable Cascade": {"vram": 12, "ram": 24, "storage": 15},
         }
-        
+
         # 解析模型名称
         model_key = None
         for key in model_requirements.keys():
             if key.lower() in model_name.lower():
                 model_key = key
                 break
-        
+
         if not model_key:
             return {
                 "compatible": True,
                 "message": "未知模型，无法评估兼容性"
             }
-        
+
         req = model_requirements[model_key]
-        
+
         # 检查显存
         gpu_mem = 0
         if self.system_info.get("gpu_memory"):
@@ -431,7 +431,7 @@ class LocalComfyUIManager:
                 gpu_mem = float(self.system_info["gpu_memory"].replace(" GB", ""))
             except:
                 pass
-        
+
         # 检查内存
         total_ram = 0
         if self.system_info.get("total_memory"):
@@ -439,18 +439,18 @@ class LocalComfyUIManager:
                 total_ram = float(self.system_info["total_memory"].replace(" GB", ""))
             except:
                 pass
-        
+
         issues = []
         warnings = []
-        
+
         if gpu_mem < req["vram"]:
             issues.append(f"显存不足：需要 {req['vram']}GB，当前 {gpu_mem}GB")
         elif gpu_mem < req["vram"] * 1.2:
             warnings.append(f"显存紧张：建议 {req['vram']}GB，当前 {gpu_mem}GB")
-        
+
         if total_ram < req["ram"]:
             issues.append(f"内存不足：需要 {req['ram']}GB，当前 {total_ram}GB")
-        
+
         return {
             "compatible": len(issues) == 0,
             "model": model_key,
@@ -459,18 +459,18 @@ class LocalComfyUIManager:
             "warnings": warnings,
             "message": "✅ 兼容" if len(issues) == 0 else "❌ 不兼容"
         }
-    
+
     def get_recommendations(self) -> Dict:
         """基于系统配置给出推荐"""
         if not self.system_info:
             self.detect_system_config()
-        
+
         recommendations = {
             "models": [],
             "workflows": [],
             "settings": {}
         }
-        
+
         # 根据显存推荐模型
         gpu_mem = 0
         if self.system_info.get("gpu_memory"):
@@ -478,7 +478,7 @@ class LocalComfyUIManager:
                 gpu_mem = float(self.system_info["gpu_memory"].replace(" GB", ""))
             except:
                 pass
-        
+
         if gpu_mem >= 16:
             recommendations["models"] = [
                 "Flux.1 Dev/Schnell",
@@ -526,14 +526,14 @@ class LocalComfyUIManager:
                 "batch_size": 1,
                 "steps": "10-15"
             }
-        
+
         return recommendations
-    
+
     def generate_report(self, output_path: str = None) -> str:
         """生成扫描报告"""
         if not output_path:
             output_path = f"comfyui_scan_report_{Path.home().name}.json"
-        
+
         report = {
             "timestamp": str(datetime.now()),
             "system_info": self.system_info,
@@ -542,10 +542,10 @@ class LocalComfyUIManager:
             "available_workflows": self.available_workflows,
             "recommendations": self.get_recommendations()
         }
-        
+
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(report, f, ensure_ascii=False, indent=2)
-        
+
         print(f"\n📄 报告已保存：{output_path}")
         return output_path
 
@@ -553,7 +553,7 @@ class LocalComfyUIManager:
 def main():
     import argparse
     from datetime import datetime
-    
+
     parser = argparse.ArgumentParser(description="ComfyUI 本地资源管理器")
     parser.add_argument("--scan", action="store_true", help="扫描本地资源")
     parser.add_argument("--system", action="store_true", help="只显示系统配置")
@@ -562,34 +562,34 @@ def main():
     parser.add_argument("--recommend", action="store_true", help="显示推荐配置")
     parser.add_argument("--report", type=str, help="生成报告到指定路径")
     parser.add_argument("--comfyui-path", type=str, help="指定 ComfyUI 路径")
-    
+
     args = parser.parse_args()
-    
+
     manager = LocalComfyUIManager()
-    
+
     # 指定路径
     if args.comfyui_path:
         manager.comfyui_path = Path(args.comfyui_path)
     else:
         manager.find_comfyui()
-    
+
     # 检测系统配置
     manager.detect_system_config()
-    
+
     if args.scan or not any([args.system, args.models, args.workflows, args.recommend]):
         # 完整扫描
         manager.scan_models()
         manager.scan_workflows()
-        
+
         if args.report:
             manager.generate_report(args.report)
-    
+
     if args.models:
         manager.scan_models()
-    
+
     if args.workflows:
         manager.scan_workflows()
-    
+
     if args.recommend:
         recs = manager.get_recommendations()
         print(f"\n💡 推荐配置:")

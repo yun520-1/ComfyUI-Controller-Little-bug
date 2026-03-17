@@ -56,18 +56,18 @@ def update_prompts(workflow, prompt, negative):
 def convert_to_api_format(workflow):
     """将 ComfyUI 工作流转换为 API 格式"""
     api_prompt = {}
-    
+
     for node in workflow.get("nodes", []):
         node_id = str(node["id"])
         node_type = node.get("type", "")
-        
+
         # 跳过特殊节点
         if node_type in ["Reroute", "Note", "PrimitiveNode"]:
             continue
-        
+
         inputs = {}
         widgets = node.get("widgets_values", [])
-        
+
         # 处理 widget
         if node_type == "CLIPTextEncode" and widgets:
             inputs["text"] = widgets[0]
@@ -108,12 +108,12 @@ def convert_to_api_format(workflow):
             inputs["fps"] = widgets[0]
         elif node_type == "LTXVConditioning" and len(widgets) >= 1:
             inputs["frame_rate"] = widgets[0]
-        
+
         # 处理输入连接
         for inp in node.get("inputs", []):
             input_name = inp.get("name")
             link_id = inp.get("link")
-            
+
             if link_id and input_name:
                 # 查找 link
                 for link in workflow.get("links", []):
@@ -122,67 +122,67 @@ def convert_to_api_format(workflow):
                         src_output = link[2]
                         inputs[input_name] = [src_node_id, src_output]
                         break
-        
+
         api_prompt[node_id] = {
             "class_type": node_type,
             "inputs": inputs
         }
-    
+
     return api_prompt
 
 
 def execute_with_comfyui(api_prompt):
     """使用 ComfyUI 执行器执行"""
     print(f"\n🚀 使用 ComfyUI 执行器执行...")
-    
+
     try:
         # 导入 ComfyUI 模块
         from execution import PromptExecutor, validate_prompt
         from server import PromptServer
         import comfy.model_management as model_management
-        
+
         print(f"   ✅ ComfyUI 模块已加载")
-        
+
         # 创建 PromptServer 实例
         server = PromptServer.instance if hasattr(PromptServer, 'instance') else None
-        
+
         if not server:
             print(f"   ⚠️  创建新的 PromptServer...")
             # 需要初始化
             import folder_paths
             folder_paths.set_output_directory(str(OUTPUT_DIR))
-        
+
         # 验证 prompt
         print(f"   📋 验证工作流...")
         validation_result = validate_prompt(api_prompt)
-        
+
         if validation_result[0]:  # 有错误
             print(f"   ❌ 验证失败:")
             for node_id, errors in validation_result[0].items():
                 print(f"      节点 {node_id}: {errors}")
             return False
-        
+
         print(f"   ✅ 验证通过")
-        
+
         # 执行
         print(f"   ⏳ 执行中...")
         prompt_id = str(uuid.uuid4())
-        
+
         # 创建执行器
         executor = PromptExecutor(server)
-        
+
         # 执行 prompt
         import asyncio
-        
+
         async def run():
             await executor.execute(prompt_id, api_prompt, {}, {}, True)
-        
+
         # 运行
         asyncio.run(run())
-        
+
         print(f"   ✅ 执行完成")
         return True
-        
+
     except ImportError as e:
         print(f"   ❌ 导入失败：{e}")
         print(f"   💡 建议：在 ComfyUI 虚拟环境中运行")
@@ -198,34 +198,34 @@ def main():
     print("="*70)
     print("🎬 LTX2 仙人古装新闻视频 - 本地直接执行")
     print("="*70)
-    
+
     print(f"\n📂 ComfyUI: {COMFYUI_PATH}")
     print(f"💾 输出：{OUTPUT_DIR}")
-    
+
     # 检查
     if not COMFYUI_PATH.exists():
         print(f"❌ ComfyUI 不存在：{COMFYUI_PATH}")
         return 1
-    
+
     if not WORKFLOW_FILE.exists():
         print(f"❌ 工作流不存在：{WORKFLOW_FILE}")
         return 1
-    
+
     print(f"✅ 工作流：{WORKFLOW_FILE.name}")
-    
+
     # 显示主题
     print(f"\n📋 主题 ({len(NEWS_TOPICS)}个):")
     for i, t in enumerate(NEWS_TOPICS, 1):
         print(f"  {i}. {t['title']}")
-    
+
     # 选择
     print(f"\n请选择:")
     print(f"  1. 生成所有")
     print(f"  2. 生成单个")
     print(f"  3. 测试第一个")
-    
+
     choice = input("\n输入 (1/2/3): ").strip()
-    
+
     topics = []
     if choice == '1':
         topics = NEWS_TOPICS
@@ -234,45 +234,45 @@ def main():
         topics = [NEWS_TOPICS[idx-1]] if 1 <= idx <= 5 else []
     elif choice == '3':
         topics = [NEWS_TOPICS[0]]
-    
+
     if not topics:
         print("无效选择")
         return 1
-    
+
     # 加载工作流
     print(f"\n📋 加载工作流...")
     workflow = load_workflow()
     print(f"   节点：{workflow.get('last_node_id', 0)}")
-    
+
     # 生成
     results = []
     for i, topic in enumerate(topics, 1):
         print(f"\n{'='*70}")
         print(f"[{i}/{len(topics)}] 📰 {topic['title']}")
         print(f"{'='*70}")
-        
+
         # 更新提示词
         print(f"\n🔄 更新提示词...")
         updated = update_prompts(workflow, topic['prompt'], topic['negative'])
-        
+
         # 转换为 API 格式
         print(f"🔄 转换格式...")
         api_prompt = convert_to_api_format(updated)
         print(f"   API 节点：{len(api_prompt)}")
-        
+
         # 执行
         success = execute_with_comfyui(api_prompt)
         results.append({"title": topic['title'], "success": success})
-        
+
         if i < len(topics):
             time.sleep(5)
-    
+
     # 汇总
     print(f"\n{'='*70}")
     success = sum(1 for r in results if r.get('success'))
     print(f"✅ 成功：{success}/{len(results)}")
     print(f"💾 {OUTPUT_DIR}")
-    
+
     return 0
 
 

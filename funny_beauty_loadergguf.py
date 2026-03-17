@@ -36,7 +36,7 @@ def create_workflow(prompt, negative, width=1024, height=512, seed=None):
     """创建工作流 - 使用 LoaderGGUF"""
     if seed is None:
         seed = int(time.time() * 1000) % 1000000
-    
+
     # 使用 LoaderGGUF (官方配置)
     workflow = {
         # 1. LoaderGGUF (同时加载 UNet 和 CLIP)
@@ -46,7 +46,7 @@ def create_workflow(prompt, negative, width=1024, height=512, seed=None):
                 "ckpt_name": "z_image_turbo-Q8_0.gguf"
             }
         },
-        
+
         # 2. VAE 加载
         "2": {
             "class_type": "VAELoader",
@@ -54,7 +54,7 @@ def create_workflow(prompt, negative, width=1024, height=512, seed=None):
                 "vae_name": "ae.safetensors"
             }
         },
-        
+
         # 3. 正向提示词
         "3": {
             "class_type": "CLIPTextEncode",
@@ -63,7 +63,7 @@ def create_workflow(prompt, negative, width=1024, height=512, seed=None):
                 "text": f"You are an assistant creating high quality images.\n\n<Prompt Start>\n{prompt}"
             }
         },
-        
+
         # 4. 负面提示词
         "4": {
             "class_type": "CLIPTextEncode",
@@ -72,7 +72,7 @@ def create_workflow(prompt, negative, width=1024, height=512, seed=None):
                 "text": negative
             }
         },
-        
+
         # 5. 空潜图
         "5": {
             "class_type": "EmptyLatentImage",
@@ -82,7 +82,7 @@ def create_workflow(prompt, negative, width=1024, height=512, seed=None):
                 "width": width
             }
         },
-        
+
         # 6. KSampler
         "6": {
             "class_type": "KSampler",
@@ -99,7 +99,7 @@ def create_workflow(prompt, negative, width=1024, height=512, seed=None):
                 "steps": 20
             }
         },
-        
+
         # 7. VAE 解码
         "7": {
             "class_type": "VAEDecode",
@@ -108,7 +108,7 @@ def create_workflow(prompt, negative, width=1024, height=512, seed=None):
                 "vae": ["2", 0]
             }
         },
-        
+
         # 8. 保存图片
         "8": {
             "class_type": "SaveImage",
@@ -118,7 +118,7 @@ def create_workflow(prompt, negative, width=1024, height=512, seed=None):
             }
         }
     }
-    
+
     return workflow
 
 
@@ -130,7 +130,7 @@ def queue_prompt(api, client_id):
             json={"prompt": api, "client_id": client_id},
             timeout=30
         )
-        
+
         if response.status_code == 200:
             result = response.json()
             prompt_id = result.get('prompt_id')
@@ -149,7 +149,7 @@ def wait_for_completion(prompt_id, client_id, timeout=300):
     try:
         print(f"⏳ 等待生成完成...")
         start_time = time.time()
-        
+
         while time.time() - start_time < timeout:
             try:
                 response = requests.get(f"http://{SERVER}/history/{prompt_id}", timeout=5)
@@ -158,18 +158,18 @@ def wait_for_completion(prompt_id, client_id, timeout=300):
                     if prompt_id in history:
                         item = history[prompt_id]
                         status = item.get('status', {})
-                        
+
                         if status.get('completed', False):
                             print(f"✅ 生成完成!")
                             return True
-                        
+
                         if status.get('status_str') == 'error':
                             print(f"❌ 执行错误")
                             return False
             except:
                 pass
             time.sleep(2)
-        
+
         print(f"⏰ 超时")
         return False
     except Exception as e:
@@ -208,24 +208,24 @@ def download_image(prompt_id):
 def generate_image(scenario, index):
     """生成图片"""
     client_id = str(uuid.uuid4())
-    
+
     print(f"\n{'='*60}")
     print(f"[{index}/2] 生成：{scenario['title']}")
     print(f"{'='*60}")
     print(f"提示词：{scenario['prompt'][:80]}...")
-    
+
     workflow = create_workflow(scenario['prompt'], scenario['negative'], 1024, 512)
-    
+
     prompt_id = queue_prompt(workflow, client_id)
     if not prompt_id:
         return False
-    
+
     if wait_for_completion(prompt_id, client_id):
         filepath = download_image(prompt_id)
         if filepath:
             print(f"✅ '{scenario['title']}' 成功!")
             return True
-    
+
     print(f"⚠️ '{scenario['title']}' 失败")
     return False
 
@@ -235,7 +235,7 @@ def main():
     print("😂 搞笑美女图片生成器 (LoaderGGUF 版)")
     print("=" * 60)
     print()
-    
+
     print("🔍 检查 ComfyUI...")
     try:
         response = requests.get("http://127.0.0.1:8188/system_stats", timeout=5)
@@ -246,19 +246,19 @@ def main():
     except:
         print("❌ ComfyUI 未运行")
         return
-    
+
     print()
     print("📐 尺寸：1024x512")
     print("🎯 模型：Z-Image-Turbo-Q8_0.gguf (LoaderGGUF)")
     print(f"📁 输出：{OUTPUT}/")
     print()
-    
+
     success_count = 0
     for i, scenario in enumerate(SCENARIOS, 1):
         if generate_image(scenario, i):
             success_count += 1
         time.sleep(3)
-    
+
     print()
     print("=" * 60)
     print("📊 完成")

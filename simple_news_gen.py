@@ -19,16 +19,16 @@ def get_workflow(prompt, width=1024, height=512, seed=None):
     """获取工作流"""
     if seed is None:
         seed = int(time.time() * 1000) % (2**32)
-    
+
     # 先获取对象信息，确定可用节点
     try:
         response = requests.get(f"http://{COMFYUI_SERVER}/object_info", timeout=5)
         if response.status_code == 200:
             object_info = response.json()
-            
+
             # 检查是否有 GGUFCheckpointLoader
             has_gguf = 'GGUFCheckpointLoader' in object_info
-            
+
             if has_gguf:
                 print("✅ 使用 GGUF 工作流")
                 return create_gguf_workflow(prompt, width, height, seed)
@@ -37,7 +37,7 @@ def get_workflow(prompt, width=1024, height=512, seed=None):
                 return create_standard_workflow(prompt, width, height, seed)
     except:
         pass
-    
+
     # 默认标准工作流
     return create_standard_workflow(prompt, width, height, seed)
 
@@ -179,7 +179,7 @@ def generate(prompt_id, workflow):
             json={"prompt": workflow, "client_id": str(uuid.uuid4())},
             timeout=10
         )
-        
+
         if response.status_code == 200:
             result = response.json()
             print(f"✅ 请求成功 - Prompt ID: {result.get('prompt_id')}")
@@ -197,7 +197,7 @@ def wait(prompt_id, timeout=120):
     """等待完成"""
     start = time.time()
     print(f"⏳ 等待生成完成...")
-    
+
     while time.time() - start < timeout:
         try:
             response = requests.get(
@@ -212,7 +212,7 @@ def wait(prompt_id, timeout=120):
         except:
             pass
         time.sleep(2)
-    
+
     print(f"⏰ 超时 ({timeout}秒)")
     return False
 
@@ -222,7 +222,7 @@ def main():
     print("📰 简易新闻图片生成器 (1024x512)")
     print("=" * 60)
     print()
-    
+
     # 检查连接
     print("🔍 检查 ComfyUI...")
     try:
@@ -235,32 +235,32 @@ def main():
         print("❌ ComfyUI 未运行")
         print("请启动：cd ~/ComfyUI && python main.py")
         return
-    
+
     print()
-    
+
     # 提示词
     prompts = [
         "professional news broadcast studio, modern TV anchor desk, breaking news banner, 4K ultra realistic, broadcast quality lighting",
         "digital news headline background, futuristic screen display, latest news ticker, blue red theme, professional broadcast studio"
     ]
-    
+
     print("🎨 开始生成 2 张新闻图片...")
     print(f"📐 尺寸：1024x512")
     print()
-    
+
     for i, prompt in enumerate(prompts, 1):
         print(f"[{i}/2] 第 {i} 张图片...")
-        
+
         workflow = get_workflow(prompt, 1024, 512)
         prompt_id = generate(i, workflow)
-        
+
         if prompt_id:
             if wait(prompt_id):
                 print(f"✅ 第 {i} 张完成")
             else:
                 print(f"⚠️ 第 {i} 张超时")
         print()
-    
+
     print("=" * 60)
     print("📊 完成")
     print("=" * 60)

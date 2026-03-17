@@ -82,16 +82,16 @@ def monitor_progress(prompt_id, client_id, timeout=600):
     try:
         ws = websocket.WebSocket()
         ws.connect(f"ws://{COMFYUI_SERVER}/ws?clientId={client_id}", timeout=10)
-        
+
         print(f"⏳ 视频生成中...", end=" ", flush=True)
         start_time = time.time()
         last_update = time.time()
-        
+
         while time.time() - start_time < timeout:
             if time.time() - last_update > 30:
                 print(f"{int((time.time() - start_time)/60)}min", end=" ", flush=True)
                 last_update = time.time()
-            
+
             try:
                 msg = json.loads(ws.recv())
                 if msg.get('type') == 'progress':
@@ -105,7 +105,7 @@ def monitor_progress(prompt_id, client_id, timeout=600):
                     return True
             except:
                 continue
-        
+
         ws.close()
         return False
     except Exception as e:
@@ -118,13 +118,13 @@ def download_video(prompt_id, news_title):
     try:
         resp = requests.get(f"http://{COMFYUI_SERVER}/history/{prompt_id}", timeout=5)
         history = resp.json()
-        
+
         if prompt_id not in history:
             return []
-        
+
         outputs = history[prompt_id].get('outputs', {})
         downloaded = []
-        
+
         for node_id, output in outputs.items():
             # 视频
             if 'video' in output:
@@ -132,40 +132,40 @@ def download_video(prompt_id, news_title):
                     if 'filename' in vid:
                         params = {'filename': vid['filename'], 'subfolder': vid.get('subfolder', ''), 'type': vid.get('type', 'output')}
                         url = f"http://{COMFYUI_SERVER}/view?{json.dumps(params)}"
-                        
+
                         resp = requests.get(url, timeout=120)
                         if resp.status_code == 200:
                             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
                             safe_title = news_title.replace(" ", "_")
                             filename = f"{ts}_{safe_title}.mp4"
                             save_path = OUTPUT_DIR / filename
-                            
+
                             with open(save_path, 'wb') as f:
                                 f.write(resp.content)
-                            
+
                             print(f"  ✅ 视频：{filename}")
                             downloaded.append(str(save_path))
-            
+
             # 图片
             if 'images' in output:
                 for img in output['images']:
                     if 'filename' in img:
                         params = {'filename': img['filename'], 'subfolder': img.get('subfolder', ''), 'type': img.get('type', 'output')}
                         url = f"http://{COMFYUI_SERVER}/view?{json.dumps(params)}"
-                        
+
                         resp = requests.get(url, timeout=30)
                         if resp.status_code == 200:
                             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
                             safe_title = news_title.replace(" ", "_")
                             filename = f"{ts}_{safe_title}_{img['filename']}"
                             save_path = OUTPUT_DIR / filename
-                            
+
                             with open(save_path, 'wb') as f:
                                 f.write(resp.content)
-                            
+
                             print(f"  ✅ 图片：{filename}")
                             downloaded.append(str(save_path))
-        
+
         return downloaded
     except Exception as e:
         print(f"❌ 下载失败：{e}")
@@ -178,23 +178,23 @@ def generate_video(topic, client_id):
     print(f"📰 {topic['title']}")
     print(f"🎨 {topic['prompt'][:50]}...")
     print(f"{'='*60}")
-    
+
     # 加载并更新工作流
     workflow = load_workflow()
     workflow = update_prompt(workflow, topic['prompt'], topic['negative'])
-    
+
     # 提交
     prompt_id = queue_prompt(workflow, client_id)
     if not prompt_id:
         return {"success": False, "error": "提交失败"}
-    
+
     # 监控
     if not monitor_progress(prompt_id, client_id):
         return {"success": False, "error": "生成失败"}
-    
+
     # 下载
     files = download_video(prompt_id, topic['title'])
-    
+
     return {"success": len(files) > 0, "files": files, "title": topic['title']}
 
 
@@ -204,7 +204,7 @@ def main():
     print("📅 2026 年 3 月最新新闻")
     print("🤖 LTX-2-19B-GGUF (Q3_K_S)")
     print("="*60)
-    
+
     # 检查连接
     try:
         resp = requests.get(f"http://{COMFYUI_SERVER}/system_stats", timeout=5)
@@ -215,23 +215,23 @@ def main():
     except:
         print("❌ 无法连接 ComfyUI")
         return 1
-    
+
     # 显示主题
     print(f"\n📋 新闻主题 ({len(NEWS_TOPICS)}个):")
     for i, t in enumerate(NEWS_TOPICS, 1):
         print(f"  {i}. {t['title']}")
-    
+
     # 选择模式
     print(f"\n请选择:")
     print("  1. 生成所有 (约 10-25 分钟)")
     print("  2. 生成单个")
     print("  3. 测试第一个")
-    
+
     choice = input("\n输入选择 (1/2/3): ").strip()
-    
+
     client_id = str(uuid.uuid4())
     results = []
-    
+
     if choice == '1':
         print(f"\n🚀 批量生成开始...")
         for i, topic in enumerate(NEWS_TOPICS, 1):
@@ -249,7 +249,7 @@ def main():
     else:
         print("无效选择")
         return 1
-    
+
     # 汇总
     print(f"\n{'='*60}")
     print("📊 结果汇总")
@@ -257,14 +257,14 @@ def main():
     success = sum(1 for r in results if r.get('success'))
     print(f"✅ 成功：{success}/{len(results)}")
     print(f"💾 {OUTPUT_DIR}")
-    
+
     # 保存报告
     report = {"timestamp": datetime.now().isoformat(), "total": len(results), "success": success, "results": results}
     report_file = OUTPUT_DIR / f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     with open(report_file, 'w', encoding='utf-8') as f:
         json.dump(report, f, ensure_ascii=False, indent=2)
     print(f"📄 报告：{report_file}")
-    
+
     return 0
 
 

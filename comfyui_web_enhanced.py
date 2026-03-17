@@ -66,7 +66,7 @@ PRESET_PROMPTS = {
 
 class NewsFetcher:
     """新闻获取器"""
-    
+
     @staticmethod
     def fetch_latest_news():
         """获取最新新闻"""
@@ -77,7 +77,7 @@ class NewsFetcher:
             "经济发展",
             "体育赛事"
         ]
-        
+
         news_list = []
         for topic in news_topics:
             try:
@@ -91,9 +91,9 @@ class NewsFetcher:
                     news_list.append({"topic": topic, "found": False})
             except:
                 news_list.append({"topic": topic, "found": False})
-        
+
         return news_list
-    
+
     @staticmethod
     def search_web(query):
         """搜索网络丰富提示词"""
@@ -113,7 +113,7 @@ class ComfyUIManager:
         self.client_id = str(uuid.uuid4())
         self.available_models = {"unet": [], "clip": [], "vae": [], "checkpoints": []}
         self.scan_models()
-    
+
     def scan_models(self):
         try:
             resp = requests.get(f"{self.base_url}/object_info", timeout=10)
@@ -132,7 +132,7 @@ class ComfyUIManager:
                 print(f"✅ 扫描到 {len(self.available_models['unet'])} UNet, {len(self.available_models['clip'])} CLIP, {len(self.available_models['vae'])} VAE")
         except Exception as e:
             print(f"❌ 扫描失败：{e}")
-    
+
     def get_queue(self):
         try:
             resp = requests.get(f"{self.base_url}/queue", timeout=5)
@@ -140,7 +140,7 @@ class ComfyUIManager:
                 return resp.json()
         except: pass
         return {"queue_running": [], "queue_pending": []}
-    
+
     def is_busy(self):
         q = self.get_queue()
         return len(q.get("queue_running", [])) > 0 or len(q.get("queue_pending", [])) > 0
@@ -296,12 +296,12 @@ class Handler(SimpleHTTPRequestHandler):
         else:
             self.send_response(404)
             self.end_headers()
-    
+
     def do_POST(self):
         if self.path == '/api/start':
             length = int(self.headers['Content-Length'])
             data = json.loads(self.rfile.read(length).decode())
-            
+
             size_info = next((s for s in SIZE_OPTIONS if s[0] == data.get('size', '1024x512')), SIZE_OPTIONS[6])
             w, h = size_info[1], size_info[2]
             prompt = f"{data.get('prompt', '')}, {data.get('extra', '')}".strip()
@@ -309,7 +309,7 @@ class Handler(SimpleHTTPRequestHandler):
             model = data.get('model', manager.available_models['unet'][0] if manager.available_models['unet'] else 'z_image_turbo-Q8_0.gguf')
             clip = manager.available_models['clip'][0] if manager.available_models['clip'] else 'ltx-2-19b-dev_embeddings_connectors.safetensors'
             vae = manager.available_models['vae'][0] if manager.available_models['vae'] else 'ae.safetensors'
-            
+
             controller.tasks = []
             for i in range(data['count']):
                 wf = {
@@ -324,19 +324,19 @@ class Handler(SimpleHTTPRequestHandler):
                     "9": {"class_type": "SaveImage", "inputs": {"filename_prefix": "ComfyUI", "images": ["8", 0]}}
                 }
                 controller.tasks.append({"id": str(uuid.uuid4()), "title": f"{data['mode']}_{i+1}", "prompt": prompt, "workflow": wf, "status": "pending", "mode": data.get('mode', 'image')})
-            
+
             self.send_json({'success': True, 'tasks': controller.tasks})
             threading.Thread(target=run_tasks, args=(data.get('interval', 30),), daemon=True).start()
         else:
             self.send_response(404)
             self.end_headers()
-    
+
     def send_json(self, d):
         self.send_response(200)
         self.send_header('Content-type', 'application/json')
         self.end_headers()
         self.wfile.write(json.dumps(d).encode())
-    
+
     def log_message(self, fmt, *args): pass
 
 class Controller:

@@ -24,11 +24,11 @@ api_prompt = {}
 for node in workflow.get("nodes", []):
     node_id = str(node["id"])
     node_type = node.get("type", "")
-    
+
     # 提取 inputs
     inputs = {}
     widgets = node.get("widgets_values", [])
-    
+
     if node_type == "CLIPTextEncode" and widgets:
         inputs["text"] = widgets[0]
     elif node_type == "EmptyLTXVLatentVideo" and len(widgets) >= 4:
@@ -71,7 +71,7 @@ for node in workflow.get("nodes", []):
         inputs["codec"] = widgets[2] if len(widgets) > 2 else "auto"
     elif node_type == "CreateVideo" and widgets:
         inputs["fps"] = widgets[0]
-    
+
     # 提取 inputs 从节点的输入连接
     for inp in node.get("inputs", []):
         link_id = inp.get("link")
@@ -85,7 +85,7 @@ for node in workflow.get("nodes", []):
                     # 简化处理，使用节点 ID
                     inputs[inp.get("name", f"input_{link_id}")] = [src_node_id, src_output_index]
                     break
-    
+
     if inputs or node_type in ["CLIPTextEncode", "EmptyLTXVLatentVideo", "UnetLoaderGGUF", "VAELoaderKJ", "DualCLIPLoaderGGUF"]:
         api_prompt[node_id] = {
             "class_type": node_type,
@@ -114,7 +114,7 @@ if resp.status_code == 200:
 else:
     print(f"❌ 提交失败")
     print(f"响应：{resp.text[:500]}")
-    
+
     # 保存转换后的工作流用于调试
     with open('/tmp/api_prompt.json', 'w') as f:
         json.dump(api_prompt, f, indent=2)

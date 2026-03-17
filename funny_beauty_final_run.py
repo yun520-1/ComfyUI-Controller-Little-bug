@@ -26,26 +26,26 @@ def load_and_convert(prompt_text, width=1024, height=512, seed=None):
     """加载并转换工作流"""
     with open(WORKFLOW_FILE, 'r') as f:
         wf = json.load(f)
-    
+
     nodes = wf.get('nodes', [])
     links = wf.get('links', [])
-    
+
     # 构建链接映射
     link_map = {}
     for link in links:
         link_id, src, src_slot, tgt, tgt_slot, _ = link
         link_map.setdefault(tgt, {})[tgt_slot] = [str(src), src_slot]
-    
+
     api_wf = {}
     for node in nodes:
         nid = str(node['id'])
         ntype = node['type']
         if ntype == 'Note':
             continue
-        
+
         inputs_raw = node.get('inputs', [])
         widgets = node.get('widgets_values', [])
-        
+
         inputs_dict = {}
         # 处理链接
         for inp in inputs_raw:
@@ -56,7 +56,7 @@ def load_and_convert(prompt_text, width=1024, height=512, seed=None):
                     if link[0] == lid:
                         inputs_dict[name] = [str(link[1]), link[2]]
                         break
-        
+
         # 处理 widgets
         wi = 0
         for inp in inputs_raw:
@@ -64,9 +64,9 @@ def load_and_convert(prompt_text, width=1024, height=512, seed=None):
             if inp.get('link') is None and wi < len(widgets):
                 inputs_dict[name] = widgets[wi]
                 wi += 1
-        
+
         api_wf[nid] = {'class_type': ntype, 'inputs': inputs_dict}
-    
+
     # 修改提示词 (节点 6)
     if '6' in api_wf:
         api_wf['6']['inputs']['text'] = f"You are an assistant creating high quality images.\n\n<Prompt Start>\n{prompt_text}"
@@ -85,7 +85,7 @@ def load_and_convert(prompt_text, width=1024, height=512, seed=None):
         api_wf['3']['inputs']['steps'] = 20
         api_wf['3']['inputs']['cfg'] = 7.0
         api_wf['3']['inputs']['denoise'] = 1.0
-    
+
     return api_wf
 
 def queue(api, cid):
@@ -159,14 +159,14 @@ def gen(scenario, idx):
     print(f"\n{'='*50}")
     print(f"[{idx}/2] {scenario['title']}")
     print(f"{'='*50}")
-    
+
     seed = int(time.time() * 1000) % 1000000
     wf = load_and_convert(scenario['prompt'], 1024, 512, seed)
-    
+
     pid = queue(wf, cid)
     if not pid:
         return False
-    
+
     if wait(pid):
         fp = download(pid)
         if fp:
@@ -178,7 +178,7 @@ def main():
     print("=" * 50)
     print("😂 搞笑美女图片生成")
     print("=" * 50)
-    
+
     try:
         r = requests.get("http://127.0.0.1:8188/system_stats", timeout=5)
         if r.status_code != 200:
@@ -187,16 +187,16 @@ def main():
     except:
         print("❌ ComfyUI 未运行")
         return
-    
+
     print(f"📁 输出：{OUTPUT}/")
     print()
-    
+
     ok = 0
     for i, s in enumerate(SCENARIOS, 1):
         if gen(s, i):
             ok += 1
         time.sleep(2)
-    
+
     print()
     print("=" * 50)
     print(f"成功：{ok}/{len(SCENARIOS)}")

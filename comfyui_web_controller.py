@@ -28,11 +28,11 @@ TASK_INTERVAL = 60
 
 class ComfyUIMonitor:
     """ComfyUI 任务监控器"""
-    
+
     def __init__(self, server=COMFYUI_SERVER):
         self.server = server
         self.base_url = f"http://{server}"
-        
+
     def get_queue(self) -> Dict:
         """获取当前队列"""
         try:
@@ -41,7 +41,7 @@ class ComfyUIMonitor:
                 return resp.json()
         except: pass
         return {"queue_running": [], "queue_pending": []}
-    
+
     def get_history(self, prompt_id: str) -> Dict:
         """获取历史记录"""
         try:
@@ -50,41 +50,41 @@ class ComfyUIMonitor:
                 return resp.json()
         except: pass
         return {}
-    
+
     def is_busy(self) -> bool:
         """检查是否正在运行任务"""
         queue = self.get_queue()
         running = queue.get("queue_running", [])
         pending = queue.get("queue_pending", [])
         return len(running) > 0 or len(pending) > 0
-    
+
     def wait_for_idle(self, timeout: int = 300, callback=None) -> bool:
         """等待空闲"""
         start = time.time()
         last_status = ""
-        
+
         while time.time() - start < timeout:
             queue = self.get_queue()
             running = len(queue.get("queue_running", []))
             pending = len(queue.get("queue_pending", []))
-            
+
             status = f"运行中：{running} | 排队：{pending}"
             if status != last_status:
                 if callback:
                     callback(status, running, pending)
                 last_status = status
-            
+
             if running == 0 and pending == 0:
                 return True
-            
+
             time.sleep(2)
-        
+
         return False
 
 
 class TaskScheduler:
     """任务调度器"""
-    
+
     def __init__(self, server=COMFYUI_SERVER):
         self.server = server
         self.base_url = f"http://{server}"
@@ -94,7 +94,7 @@ class TaskScheduler:
         self.task_queue = []
         self.current_task = None
         self.last_task_time = 0
-        
+
     def add_task(self, task: Dict):
         """添加任务到队列"""
         self.task_queue.append({
@@ -104,7 +104,7 @@ class TaskScheduler:
             "created_at": datetime.now().isoformat()
         })
         print(f"✅ 任务已添加：{task.get('title', '未知')}")
-    
+
     def wait_interval(self):
         """等待任务间隔"""
         if self.last_task_time > 0:
@@ -113,21 +113,21 @@ class TaskScheduler:
                 wait_time = TASK_INTERVAL - elapsed
                 print(f"⏳ 等待任务间隔：{wait_time:.0f}秒")
                 time.sleep(wait_time)
-    
+
     def execute_task(self, task: Dict) -> bool:
         """执行单个任务"""
         print(f"\n{'='*70}")
         print(f"🚀 执行任务：{task.get('title', '未知')}")
         print(f"   提示词：{task.get('prompt', '')[:60]}...")
-        
+
         # 等待空闲
         print(f"\n⏳ 等待 ComfyUI 空闲...")
         self.monitor.wait_for_idle(timeout=300, callback=lambda s, r, p: print(f"   {s}", end="\r"))
         print(f"   ✅ ComfyUI 空闲")
-        
+
         # 等待任务间隔
         self.wait_interval()
-        
+
         # 提交任务
         workflow = task.get('workflow')
         try:
@@ -136,31 +136,31 @@ class TaskScheduler:
                 json={"prompt": workflow, "client_id": self.client_id},
                 timeout=30
             )
-            
+
             if resp.status_code != 200:
                 print(f"❌ 提交失败：{resp.status_code}")
                 return False
-            
+
             pid = resp.json().get('prompt_id')
             print(f"✅ 已提交 (ID: {pid})")
-            
+
             # 监控进度
             return self.monitor_progress(pid)
-            
+
         except Exception as e:
             print(f"❌ 错误：{e}")
             return False
-    
+
     def monitor_progress(self, prompt_id: str, timeout: int = 300) -> bool:
         """监控进度"""
         try:
             ws = websocket.WebSocket()
             ws.connect(f"{self.ws_url}?clientId={self.client_id}", timeout=10)
-            
+
             print(f"⏳ 生成中...", end=" ", flush=True)
             start = time.time()
             last_pct = -1
-            
+
             while time.time() - start < timeout:
                 try:
                     msg = json.loads(ws.recv())
@@ -175,22 +175,22 @@ class TaskScheduler:
                         self.last_task_time = time.time()
                         return True
                 except: continue
-            
+
             ws.close()
             return False
         except Exception as e:
             print(f"❌ 监控失败：{e}")
             return False
-    
+
     def download_result(self, prompt_id: str, title: str = "") -> List[str]:
         """下载结果"""
         try:
             resp = requests.get(f"{self.base_url}/history/{prompt_id}", timeout=10)
             history = resp.json().get(prompt_id, {})
-            
+
             outputs = history.get('outputs', {})
             downloaded = []
-            
+
             for node_id, output in outputs.items():
                 if 'images' in output:
                     for img in output['images']:
@@ -198,44 +198,44 @@ class TaskScheduler:
                         if filename:
                             params = f"?filename={filename}&subfolder={img.get('subfolder', '')}&type={img.get('type', 'output')}"
                             url = f"{self.base_url}/view{params}"
-                            
+
                             resp = requests.get(url, timeout=30)
                             if resp.status_code == 200:
                                 ts = datetime.now().strftime("%Y%m%d_%H%M%S")
                                 filepath = OUTPUT_DIR / f"{ts}_{title.replace(' ', '_') if title else 'image'}.png"
-                                
+
                                 with open(filepath, 'wb') as f:
                                     f.write(resp.content)
-                                
+
                                 print(f"  ✅ {filepath.name}")
                                 downloaded.append(str(filepath))
-            
+
             return downloaded
         except Exception as e:
             print(f"❌ 下载失败：{e}")
             return []
-    
+
     def run_queue(self):
         """运行任务队列"""
         print(f"\n{'='*70}")
         print(f"📋 任务队列：{len(self.task_queue)} 个任务")
         print(f"⏱️  任务间隔：{TASK_INTERVAL}秒")
         print(f"{'='*70}")
-        
+
         for i, task in enumerate(self.task_queue, 1):
             print(f"\n📊 进度：[{i}/{len(self.task_queue)}]")
-            
+
             success = self.execute_task(task)
             task['status'] = 'completed' if success else 'failed'
-            
+
             if success:
                 # 下载结果
                 files = self.download_result("last", task.get('title', 'task'))
                 task['files'] = files
-            
+
             # 更新任务状态
             self.current_task = task
-        
+
         # 汇总
         print(f"\n{'='*70}")
         print(f"📊 任务完成")
@@ -434,7 +434,7 @@ HTML_PAGE = """
 <body>
     <div class="container">
         <h1>🎨 ComfyUI 智能控制器</h1>
-        
+
         <!-- 状态栏 -->
         <div class="card">
             <div class="status-bar">
@@ -456,7 +456,7 @@ HTML_PAGE = """
                 </div>
             </div>
         </div>
-        
+
         <div class="grid">
             <!-- 任务配置 -->
             <div class="card">
@@ -475,28 +475,28 @@ HTML_PAGE = """
                             <option value="news">新闻配图</option>
                         </select>
                     </div>
-                    
+
                     <div class="form-group">
                         <label>生成数量</label>
                         <input type="number" id="count" min="1" max="10" value="3">
                     </div>
-                    
+
                     <div class="form-group">
                         <label>自定义主题（可选）</label>
                         <textarea id="custom-topic" placeholder="输入自定义主题，留空则使用默认提示词"></textarea>
                     </div>
-                    
+
                     <div class="form-group">
                         <label>任务间隔（秒）</label>
                         <input type="number" id="interval" min="0" max="300" value="60">
                     </div>
-                    
+
                     <button type="submit" class="btn" id="start-btn">
                         🚀 开始生成
                     </button>
                 </form>
             </div>
-            
+
             <!-- 任务队列 -->
             <div class="card">
                 <h2>📋 任务队列</h2>
@@ -510,7 +510,7 @@ HTML_PAGE = """
                 </div>
             </div>
         </div>
-        
+
         <!-- 日志区域 -->
         <div class="card">
             <h2>📊 运行日志</h2>
@@ -519,17 +519,17 @@ HTML_PAGE = """
             </div>
         </div>
     </div>
-    
+
     <script>
         let isRunning = false;
         let taskQueue = [];
-        
+
         // 更新状态
         async function updateStatus() {
             try {
                 const resp = await fetch('/api/status');
                 const data = await resp.json();
-                
+
                 document.getElementById('comfyui-status').textContent = data.comfyui_connected ? '在线' : '离线';
                 document.getElementById('comfyui-status').className = 'status-value ' + (data.comfyui_connected ? 'idle' : 'busy');
                 document.getElementById('running-count').textContent = data.running;
@@ -540,7 +540,7 @@ HTML_PAGE = """
                 console.error('Status update failed:', e);
             }
         }
-        
+
         // 添加日志
         function addLog(message, type = 'info') {
             const logArea = document.getElementById('log-area');
@@ -551,7 +551,7 @@ HTML_PAGE = """
             logArea.appendChild(line);
             logArea.scrollTop = logArea.scrollHeight;
         }
-        
+
         // 更新队列显示
         function updateQueue() {
             const queueList = document.getElementById('queue-list');
@@ -559,69 +559,69 @@ HTML_PAGE = """
                 queueList.innerHTML = '<li class="queue-item"><span class="queue-item-title">暂无任务</span></li>';
                 return;
             }
-            
+
             queueList.innerHTML = taskQueue.map((task, i) => `
                 <li class="queue-item ${task.status}">
                     <span class="queue-item-title">${i + 1}. ${task.title}</span>
                     <span class="queue-item-status status-${task.status}">${task.status === 'pending' ? '等待中' : task.status === 'running' ? '运行中' : task.status === 'completed' ? '完成' : '失败'}</span>
                 </li>
             `).join('');
-            
+
             // 更新进度条
             const completed = taskQueue.filter(t => t.status === 'completed').length;
             const progress = (completed / taskQueue.length) * 100;
             document.getElementById('progress-fill').style.width = progress + '%';
         }
-        
+
         // 提交任务
         document.getElementById('task-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            
+
             if (isRunning) {
                 addLog('任务已在运行中', 'warning');
                 return;
             }
-            
+
             const formData = {
                 gen_type: document.getElementById('gen-type').value,
                 count: parseInt(document.getElementById('count').value),
                 custom_topic: document.getElementById('custom-topic').value,
                 interval: parseInt(document.getElementById('interval').value)
             };
-            
+
             isRunning = true;
             document.getElementById('start-btn').disabled = true;
             document.getElementById('start-btn').textContent = '⏳ 生成中...';
-            
+
             addLog(`开始生成：${formData.count} 张 ${formData.gen_type} 类型图片`, 'info');
             addLog(`任务间隔：${formData.interval} 秒`, 'info');
-            
+
             try {
                 const resp = await fetch('/api/start', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(formData)
                 });
-                
+
                 const result = await resp.json();
-                
+
                 if (result.success) {
                     taskQueue = result.tasks;
                     addLog(`已创建 ${taskQueue.length} 个任务`, 'success');
                     updateQueue();
-                    
+
                     // 轮询状态
                     const pollInterval = setInterval(async () => {
                         await updateStatus();
-                        
+
                         const statusResp = await fetch('/api/status');
                         const status = await statusResp.json();
-                        
+
                         if (status.tasks) {
                             taskQueue = status.tasks;
                             updateQueue();
                         }
-                        
+
                         if (!status.is_running) {
                             clearInterval(pollInterval);
                             isRunning = false;
@@ -630,7 +630,7 @@ HTML_PAGE = """
                             addLog('所有任务已完成', 'success');
                         }
                     }, 2000);
-                    
+
                 } else {
                     addLog(`启动失败：${result.error}`, 'error');
                     isRunning = false;
@@ -644,7 +644,7 @@ HTML_PAGE = """
                 document.getElementById('start-btn').textContent = '🚀 开始生成';
             }
         });
-        
+
         // 初始化
         updateStatus();
         setInterval(updateStatus, 3000);
@@ -656,11 +656,11 @@ HTML_PAGE = """
 
 class WebHandler(SimpleHTTPRequestHandler):
     """网页处理器"""
-    
+
     def __init__(self, *args, scheduler=None, **kwargs):
         self.scheduler = scheduler
         super().__init__(*args, **kwargs)
-    
+
     def do_GET(self):
         if self.path == '/':
             self.send_response(200)
@@ -678,21 +678,21 @@ class WebHandler(SimpleHTTPRequestHandler):
             })
         else:
             super().do_GET(self)
-    
+
     def do_POST(self):
         if self.path == '/api/start':
             content_length = int(self.headers['Content-Length'])
             post_data = self.rfile.read(content_length)
             data = json.loads(post_data.decode())
-            
+
             # 创建任务
             self.scheduler.task_queue = []
             gen_type = data.get('gen_type', 'funny')
             count = data.get('count', 3)
             interval = data.get('interval', 60)
-            
+
             TASK_INTERVAL = interval
-            
+
             # 生成提示词
             prompts = {
                 "funny": "funny cartoon style, humor, exaggerated, bright colors",
@@ -704,9 +704,9 @@ class WebHandler(SimpleHTTPRequestHandler):
                 "scifi": "science fiction, spaceship, alien planet, futuristic",
                 "news": "news illustration, professional, high quality"
             }
-            
+
             base_prompt = prompts.get(gen_type, prompts["funny"])
-            
+
             for i in range(count):
                 workflow = {
                     "1": {"class_type": "UnetLoaderGGUF", "inputs": {"unet_name": "z_image_turbo-Q8_0.gguf"}},
@@ -719,17 +719,17 @@ class WebHandler(SimpleHTTPRequestHandler):
                     "8": {"class_type": "VAEDecode", "inputs": {"samples": ["7", 0], "vae": ["3", 0]}},
                     "9": {"class_type": "SaveImage", "inputs": {"filename_prefix": f"ComfyUI_{gen_type}", "images": ["8", 0]}}
                 }
-                
+
                 self.scheduler.add_task({
                     "title": f"{gen_type}_{i+1}",
                     "prompt": base_prompt,
                     "workflow": workflow
                 })
-            
+
             self.send_json({'success': True, 'tasks': self.scheduler.task_queue})
         else:
             super().do_POST(self)
-    
+
     def send_json(self, data):
         self.send_response(200)
         self.send_header('Content-type', 'application/json')
@@ -749,34 +749,34 @@ def main():
     print("="*70)
     print("🎨 ComfyUI 网页版智能控制器")
     print("="*70)
-    
+
     # 创建调度器
     scheduler = TaskScheduler()
-    
+
     # 检查 ComfyUI 连接
     if not scheduler.monitor.get_queue():
         print(f"\n❌ 无法连接 ComfyUI ({COMFYUI_SERVER})")
         print(f"💡 确保 ComfyUI 正在运行")
         return 1
-    
+
     print(f"✅ ComfyUI: {COMFYUI_SERVER}")
-    
+
     # 在后台运行网页服务器
     web_thread = threading.Thread(target=run_web_server, args=(scheduler,), daemon=True)
     web_thread.start()
-    
+
     # 自动打开浏览器
     time.sleep(1)
     webbrowser.open(f"http://127.0.0.1:{CONTROLLER_PORT}")
     print(f"🌐 已打开浏览器")
-    
+
     # 保持运行
     try:
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
         print(f"\n⚠️  停止")
-    
+
     return 0
 
 

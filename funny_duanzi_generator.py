@@ -34,7 +34,7 @@ def create_txt2img_workflow(prompt, negative, width=1024, height=512, steps=20, 
     """创建文生图工作流"""
     if seed is None:
         seed = int(time.time() * 1000) % 1000000
-    
+
     return {
         "3": {
             "class_type": "KSampler",
@@ -118,7 +118,7 @@ def monitor(pid, cid, timeout=300):
         print("⏳ ", end="", flush=True)
         start = time.time()
         last_pct = -1
-        
+
         while time.time() - start < timeout:
             try:
                 msg = json.loads(ws.recv())
@@ -145,10 +145,10 @@ def download(pid, title, duanzi):
         r = requests.get(f"http://{SERVER}/history/{pid}", timeout=10)
         h = r.json()
         if pid not in h: return []
-        
+
         outs = h[pid].get('outputs', {})
         dl = []
-        
+
         for nid, out in outs.items():
             if 'images' in out:
                 for img in out['images']:
@@ -163,7 +163,7 @@ def download(pid, title, duanzi):
                             with open(fp, 'wb') as f: f.write(r2.content)
                             print(f"  ✅ {fp.name}")
                             dl.append(str(fp))
-                            
+
                             meta = {
                                 "title": title,
                                 "duanzi": duanzi,
@@ -185,21 +185,21 @@ def generate(topic, idx, total):
     print(f"💬 {topic['duanzi'][:80]}...")
     print(f"🎨 {topic['prompt'][:50]}...")
     print(f"{'='*70}")
-    
+
     # 创建工作流
     print(f"\n📝 创建工作流 (1024x512)...")
     api = create_txt2img_workflow(topic['prompt'], topic['negative'], width=1024, height=512, steps=25, cfg=7)
-    
+
     # 提交
     cid = str(uuid.uuid4())
     pid = queue(api, cid)
     if not pid:
         return {"success": False, "error": "提交失败", "title": topic['title']}
-    
+
     # 监控
     if not monitor(pid, cid):
         return {"success": False, "error": "超时", "title": topic['title']}
-    
+
     # 下载
     files = download(pid, topic['title'], topic['duanzi'])
     return {"success": len(files) > 0, "files": files, "title": topic['title']}
@@ -210,7 +210,7 @@ def main():
     print("😂 搞笑段子图片生成器")
     print("📏 1024x512")
     print("="*70)
-    
+
     # 检查连接
     try:
         r = requests.get(f"http://{SERVER}/system_stats", timeout=5)
@@ -218,29 +218,29 @@ def main():
     except:
         print(f"❌ 无法连接：{SERVER}")
         return 1
-    
+
     # 显示段子
     print(f"\n📖 搞笑段子 ({len(DUANZI_TOPICS)}个):")
     for i, t in enumerate(DUANZI_TOPICS, 1):
         print(f"  {i}. {t['title']}")
-    
+
     # 选择
     print(f"\n请选择:")
     print(f"  1. 生成所有 ({len(DUANZI_TOPICS)}个)")
     print(f"  2. 生成单个")
-    
+
     c = input("\n输入 (1/2): ").strip()
-    
+
     topics = DUANZI_TOPICS if c == '1' else ([DUANZI_TOPICS[int(input("序号: ").strip())-1]] if c == '2' else [])
     if not topics: return 1
-    
+
     # 生成
     print(f"\n🚀 开始生成...")
     results = []
     for i, topic in enumerate(topics, 1):
         results.append(generate(topic, i, len(topics)))
         if i < len(topics): time.sleep(3)
-    
+
     # 汇总
     print(f"\n{'='*70}")
     print("📊 结果")
@@ -248,17 +248,17 @@ def main():
     ok = sum(1 for r in results if r.get('success'))
     print(f"✅ 成功：{ok}/{len(results)}")
     print(f"💾 {OUTPUT}")
-    
+
     # 报告
     report = {"timestamp": datetime.now().isoformat(), "success": ok, "results": results}
     report_file = OUTPUT / f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     with open(report_file, 'w', encoding='utf-8') as f:
         json.dump(report, f, indent=2, ensure_ascii=False)
     print(f"📄 {report_file}")
-    
+
     if ok > 0:
         print(f"\n🎉 完成！")
-    
+
     return 0
 
 

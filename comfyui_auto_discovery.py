@@ -19,17 +19,17 @@ from typing import Dict, List, Optional, Any
 # 跨平台路径配置
 class PlatformPaths:
     """跨平台路径配置"""
-    
+
     @staticmethod
     def get_home():
         return Path.home()
-    
+
     @staticmethod
     def get_comfyui_dirs():
         """获取所有可能的 ComfyUI 安装目录"""
         system = platform.system()
         dirs = []
-        
+
         if system == "Darwin":  # macOS
             dirs = [
                 Path.home() / "Documents/lmd_data_root/apps/ComfyUI",
@@ -50,14 +50,14 @@ class PlatformPaths:
                 Path("/opt/ComfyUI"),
                 Path("/usr/local/ComfyUI"),
             ]
-        
+
         # 添加环境变量指定的路径
         env_path = os.environ.get("COMFYUI_PATH")
         if env_path:
             dirs.append(Path(env_path))
-        
+
         return [d for d in dirs if d.exists()]
-    
+
     @staticmethod
     def get_model_dirs(base_dir: Path) -> Dict[str, Path]:
         """获取模型目录"""
@@ -71,7 +71,7 @@ class PlatformPaths:
             "embeddings": base_dir / "models/embeddings",
             "upscale_models": base_dir / "models/upscale_models",
         }
-    
+
     @staticmethod
     def get_workflow_dirs(base_dir: Path) -> List[Path]:
         """获取工作流目录"""
@@ -84,7 +84,7 @@ class PlatformPaths:
 
 class ModelRegistry:
     """模型注册表 - 从官网和社区获取模型信息"""
-    
+
     # 官方模型信息源
     OFFICIAL_SOURCES = {
         "z_image_turbo": {
@@ -135,7 +135,7 @@ class ModelRegistry:
             "docs_url": "https://huggingface.co/black-forest-labs/FLUX.1-dev",
         },
     }
-    
+
     @classmethod
     def get_model_info(cls, model_name: str) -> Optional[Dict]:
         """获取模型信息"""
@@ -144,7 +144,7 @@ class ModelRegistry:
             if key in model_name.lower():
                 return info
         return None
-    
+
     @classmethod
     def fetch_from_huggingface(cls, repo_id: str) -> Optional[Dict]:
         """从 HuggingFace 获取模型信息"""
@@ -163,7 +163,7 @@ class ModelRegistry:
         except Exception as e:
             print(f"⚠️ 无法获取 HuggingFace 信息：{e}")
         return None
-    
+
     @classmethod
     def fetch_from_civitai(cls, model_id: str) -> Optional[Dict]:
         """从 Civitai 获取模型信息"""
@@ -185,21 +185,21 @@ class ModelRegistry:
 
 class WorkflowAnalyzer:
     """工作流分析器"""
-    
+
     @staticmethod
     def analyze_workflow(wf_path: Path) -> Dict:
         """分析工作流文件"""
         try:
             with open(wf_path, 'r', encoding='utf-8') as f:
                 wf = json.load(f)
-            
+
             nodes = wf.get('nodes', [])
             links = wf.get('links', [])
-            
+
             # 统计节点类型
             from collections import Counter
             node_types = Counter(n.get('type') for n in nodes)
-            
+
             # 识别工作流类型
             workflow_type = "unknown"
             if any('LTX' in t or 'ltx' in t.lower() for t in node_types):
@@ -208,16 +208,16 @@ class WorkflowAnalyzer:
                 workflow_type = "image"
             elif any('Audio' in t or 'audio' in t.lower() for t in node_types):
                 workflow_type = "audio"
-            
+
             # 提取关键节点
             key_nodes = {}
             for node in nodes:
                 ntype = node.get('type')
-                if ntype in ['UnetLoaderGGUF', 'LoaderGGUF', 'DualCLIPLoaderGGUF', 
+                if ntype in ['UnetLoaderGGUF', 'LoaderGGUF', 'DualCLIPLoaderGGUF',
                             'KSampler', 'VAELoader', 'CLIPTextEncode', 'SaveImage',
                             'SaveVideo', 'EmptyLTXVLatentVideo', 'EmptySD3LatentImage']:
                     key_nodes[ntype] = node
-            
+
             return {
                 "file": str(wf_path),
                 "name": wf_path.stem,
@@ -230,12 +230,12 @@ class WorkflowAnalyzer:
             }
         except Exception as e:
             return {"error": str(e), "file": str(wf_path)}
-    
+
     @staticmethod
     def extract_settings(key_nodes: Dict) -> Dict:
         """提取工作流设置"""
         settings = {}
-        
+
         # KSampler 设置
         if 'KSampler' in key_nodes:
             node = key_nodes['KSampler']
@@ -244,7 +244,7 @@ class WorkflowAnalyzer:
                 settings['sampler'] = widgets[4] if len(widgets) > 4 else None
                 settings['scheduler'] = widgets[5] if len(widgets) > 5 else None
                 settings['steps'] = widgets[1] if len(widgets) > 1 else None
-        
+
         # 分辨率设置
         for ntype, node in key_nodes.items():
             if 'Empty' in ntype and 'Latent' in ntype:
@@ -254,29 +254,29 @@ class WorkflowAnalyzer:
                     settings['height'] = widgets[1]
                 if len(widgets) >= 3:
                     settings['frames'] = widgets[2]
-        
+
         return settings
 
 
 class ComfyUIDiscovery:
     """ComfyUI 自动发现系统"""
-    
+
     def __init__(self):
         self.comfyui_dirs = PlatformPaths.get_comfyui_dirs()
         self.models = {}
         self.workflows = {}
         self.server = "127.0.0.1:8188"
-    
+
     def discover_models(self) -> Dict[str, List[str]]:
         """发现所有模型"""
         print("🔍 扫描模型...")
-        
+
         all_models = {}
-        
+
         for base_dir in self.comfyui_dirs:
             print(f"  扫描：{base_dir}")
             model_dirs = PlatformPaths.get_model_dirs(base_dir)
-            
+
             for model_type, model_dir in model_dirs.items():
                 if model_dir.exists():
                     models = []
@@ -291,22 +291,22 @@ class ComfyUIDiscovery:
                                     "type": model_type,
                                     "info": model_info,
                                 }
-                    
+
                     if models:
                         all_models[model_type] = models
                         print(f"    {model_type}: {len(models)} 个模型")
-        
+
         return all_models
-    
+
     def discover_workflows(self) -> List[Dict]:
         """发现所有工作流"""
         print("🔍 扫描工作流...")
-        
+
         all_workflows = []
-        
+
         for base_dir in self.comfyui_dirs:
             workflow_dirs = PlatformPaths.get_workflow_dirs(base_dir)
-            
+
             for wf_dir in workflow_dirs:
                 if wf_dir.exists():
                     for wf_file in wf_dir.glob("*.json"):
@@ -315,9 +315,9 @@ class ComfyUIDiscovery:
                         analysis['base_dir'] = str(base_dir)
                         all_workflows.append(analysis)
                         self.workflows[analysis['name']] = analysis
-        
+
         return all_workflows
-    
+
     def check_server(self) -> bool:
         """检查 ComfyUI 服务器"""
         try:
@@ -325,7 +325,7 @@ class ComfyUIDiscovery:
             return r.status_code == 200
         except:
             return False
-    
+
     def get_available_nodes(self) -> List[str]:
         """获取可用节点列表"""
         try:
@@ -335,7 +335,7 @@ class ComfyUIDiscovery:
         except:
             pass
         return []
-    
+
     def generate_report(self) -> str:
         """生成发现报告"""
         report = []
@@ -344,11 +344,11 @@ class ComfyUIDiscovery:
         report.append(f"⏰ 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         report.append(f"💻 系统：{platform.system()} {platform.release()}")
         report.append("=" * 60)
-        
+
         report.append(f"\n📁 ComfyUI 安装目录：{len(self.comfyui_dirs)} 个")
         for d in self.comfyui_dirs:
             report.append(f"  - {d}")
-        
+
         report.append(f"\n🎯 发现的模型：{len(self.models)} 个")
         model_types = {}
         for name, info in self.models.items():
@@ -356,7 +356,7 @@ class ComfyUIDiscovery:
             model_types[mtype] = model_types.get(mtype, 0) + 1
         for mtype, count in model_types.items():
             report.append(f"  {mtype}: {count} 个")
-        
+
         report.append(f"\n📄 发现的工作流：{len(self.workflows)} 个")
         workflow_types = {}
         for name, info in self.workflows.items():
@@ -364,13 +364,13 @@ class ComfyUIDiscovery:
             workflow_types[wtype] = workflow_types.get(wtype, 0) + 1
         for wtype, count in workflow_types.items():
             report.append(f"  {wtype}: {count} 个")
-        
+
         report.append(f"\n🔌 ComfyUI 服务器：{'✅ 在线' if self.check_server() else '❌ 离线'}")
-        
+
         if self.check_server():
             nodes = self.get_available_nodes()
             report.append(f"   可用节点：{len(nodes)} 个")
-        
+
         report.append("\n" + "=" * 60)
         return "\n".join(report)
 
@@ -381,29 +381,29 @@ def main():
     print("🚀 ComfyUI 自动发现与智能执行系统")
     print("=" * 60)
     print()
-    
+
     discovery = ComfyUIDiscovery()
-    
+
     # 发现模型
     models = discovery.discover_models()
     print()
-    
+
     # 发现工作流
     workflows = discovery.discover_workflows()
     print()
-    
+
     # 生成报告
     report = discovery.generate_report()
     print(report)
-    
+
     # 保存报告
     report_file = Path.home() / ".jvs/.openclaw/workspace/ComfyUI-Controller-Little-bug/发现报告.md"
     report_file.parent.mkdir(parents=True, exist_ok=True)
     with open(report_file, 'w', encoding='utf-8') as f:
         f.write(report)
-    
+
     print(f"\n📄 报告已保存：{report_file}")
-    
+
     # 显示推荐的模型和工作流组合
     print("\n💡 推荐的模型 + 工作流组合:")
     for wf_name, wf_info in discovery.workflows.items():

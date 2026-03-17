@@ -29,22 +29,22 @@ def convert_with_single_clip(workflow_json, prompt_text, negative_text):
     """
     nodes = workflow_json.get("nodes", [])
     links = workflow_json.get("links", [])
-    
+
     link_map = {link[0]: {"src": str(link[1]), "src_slot": link[2], "dst": str(link[3]), "dst_slot": link[4]} for link in links}
     node_map = {str(node["id"]): node for node in nodes}
-    
+
     api_prompt = {}
-    
+
     for node in nodes:
         node_id = str(node["id"])
         node_type = node.get("type", "")
-        
+
         if node_type in ["Note"]:
             continue
-        
+
         inputs = {}
         widgets = node.get("widgets_values", [])
-        
+
         # 关键修复：使用 CLIPLoader 代替 DualCLIPLoaderGGUF
         if node_type == "DualCLIPLoaderGGUF":
             # 替换为单 CLIP 加载
@@ -111,17 +111,17 @@ def convert_with_single_clip(workflow_json, prompt_text, negative_text):
             pass
         elif node_type == "Reroute":
             continue
-        
+
         # 处理输入连接
         for inp in node.get("inputs", []):
             input_name = inp.get("name")
             link_id = inp.get("link")
-            
+
             if link_id and link_id in link_map and input_name:
                 link_info = link_map[link_id]
                 src_node_id = link_info["src"]
                 src_slot = link_info["src_slot"]
-                
+
                 # 跳过 Reroute
                 src_node = node_map.get(src_node_id, {})
                 if src_node.get("type") == "Reroute":
@@ -132,7 +132,7 @@ def convert_with_single_clip(workflow_json, prompt_text, negative_text):
                             src_node_id = r_link["src"]
                             src_slot = r_link["src_slot"]
                             break
-                
+
                 # 如果是 CLIPTextEncode 的 clip 输入，指向新的 CLIPLoader
                 if node_type == "CLIPTextEncode" and input_name == "clip":
                     # 找到新的 CLIPLoader 节点 ID
@@ -142,13 +142,13 @@ def convert_with_single_clip(workflow_json, prompt_text, negative_text):
                             break
                 else:
                     inputs[input_name] = [src_node_id, int(src_slot)]
-        
+
         if inputs or node_type in ["CLIPTextEncode", "CLIPLoader", "EmptyLTXVLatentVideo", "UnetLoaderGGUF", "VAELoaderKJ", "SaveVideo", "CreateVideo"]:
             api_prompt[node_id] = {
                 "class_type": node_type,
                 "inputs": inputs
             }
-    
+
     return api_prompt
 
 
@@ -174,7 +174,7 @@ def monitor(pid, cid, timeout=600):
         print("⏳ ", end="", flush=True)
         start = time.time()
         last_pct = -1
-        
+
         while time.time() - start < timeout:
             try:
                 msg = json.loads(ws.recv())
@@ -201,10 +201,10 @@ def download(pid, title):
         r = requests.get(f"http://{SERVER}/history/{pid}", timeout=10)
         h = r.json()
         if pid not in h: return []
-        
+
         outs = h[pid].get('outputs', {})
         dl = []
-        
+
         for nid, out in outs.items():
             for k, items in [('video', out.get('video', [])), ('images', out.get('images', []))]:
                 for it in items:
@@ -230,24 +230,24 @@ def download(pid, title):
 
 def generate(topic, idx, total):
     print(f"\n{'='*60}\n[{idx}/{total}] 📰 {topic['title']}\n📝 {topic['prompt'][:50]}...\n{'='*60}")
-    
+
     print(f"\n📋 加载工作流...")
     with open(WORKFLOW_FILE, 'r', encoding='utf-8') as f:
         workflow = json.load(f)
     print(f"   节点：{workflow.get('last_node_id', 0)}")
-    
+
     print(f"\n🔄 转换 API (使用单 CLIP)...")
     api = convert_with_single_clip(workflow, topic['prompt'], topic['negative'])
     print(f"   API 节点：{len(api)}")
-    
+
     cid = str(uuid.uuid4())
     pid = queue(api, cid)
     if not pid:
         return {"success": False, "error": "提交失败", "title": topic['title']}
-    
+
     if not monitor(pid, cid):
         return {"success": False, "error": "超时", "title": topic['title']}
-    
+
     files = download(pid, topic['title'])
     return {"success": len(files) > 0, "files": files, "title": topic['title']}
 
@@ -256,43 +256,43 @@ def main():
     print("="*60)
     print("🎬 LTX2 仙人古装 - 单 CLIP 修复版")
     print("="*60)
-    
+
     try:
         r = requests.get(f"http://{SERVER}/system_stats", timeout=5)
         print(f"\n✅ ComfyUI: {SERVER}")
     except:
         print(f"❌ 无法连接：{SERVER}")
         return 1
-    
+
     if not WORKFLOW_FILE.exists():
         print(f"❌ 工作流不存在")
         return 1
-    
+
     print(f"\n📋 主题 ({len(TOPICS)}个):")
     for i, t in enumerate(TOPICS, 1): print(f"  {i}. {t['title']}")
-    
+
     print(f"\n请选择：1.所有  2.单个  3.测试")
     c = input("输入 (1/2/3): ").strip()
-    
+
     topics = TOPICS if c == '1' else ([TOPICS[int(input("序号: ").strip())-1]] if c == '2' and 1 <= int(input("序号: ").strip()) <= 5 else [TOPICS[0]]) if c == '3' else []
     if not topics: return 1
-    
+
     results = []
     for i, topic in enumerate(topics, 1):
         results.append(generate(topic, i, len(topics)))
         if i < len(topics): time.sleep(5)
-    
+
     print(f"\n{'='*60}\n📊 结果\n{'='*60}")
     ok = sum(1 for r in results if r.get('success'))
     print(f"✅ {ok}/{len(results)}")
     print(f"💾 {OUTPUT}")
-    
+
     report = {"timestamp": datetime.now().isoformat(), "success": ok, "results": results}
     report_file = OUTPUT / f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     with open(report_file, 'w', encoding='utf-8') as f:
         json.dump(report, f, indent=2, ensure_ascii=False)
     print(f"📄 {report_file}")
-    
+
     return 0
 
 

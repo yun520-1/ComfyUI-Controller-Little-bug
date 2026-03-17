@@ -61,22 +61,22 @@ def main():
     print(f"时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("="*60)
     print()
-    
+
     results = {
         'syntax': [],
         'import': [],
         'execution': []
     }
-    
+
     # 1. 语法测试
     print("📋 语法测试...")
     py_files = list(WORKSPACE.glob('*.py'))
     for py_file in py_files[:10]:  # 测试前 10 个文件
         ok = test_syntax(py_file)
         results['syntax'].append((py_file.name, ok))
-    
+
     print()
-    
+
     # 2. 导入测试
     print("📋 导入测试...")
     core_modules = [
@@ -89,9 +89,9 @@ def main():
     for module in core_modules:
         ok = test_import(module)
         results['import'].append((module, ok))
-    
+
     print()
-    
+
     # 3. 执行测试
     print("📋 执行测试...")
     tests = [
@@ -101,31 +101,31 @@ def main():
     for test in tests:
         ok = test_execution(test)
         results['execution'].append((test[:40], ok))
-    
+
     print()
-    
+
     # 汇总结果
     print("="*60)
     print("📊 测试结果汇总")
     print("="*60)
-    
+
     total = 0
     passed = 0
-    
+
     for category, tests in results.items():
         cat_total = len(tests)
         cat_passed = sum(1 for _, ok in tests if ok)
         total += cat_total
         passed += cat_passed
-        
+
         status = "✅" if cat_passed == cat_total else "⚠️"
         print(f"{status} {category}: {cat_passed}/{cat_total}")
-    
+
     print()
     overall = "✅" if passed == total else "❌"
     print(f"{overall} 总计：{passed}/{total} 通过")
     print("="*60)
-    
+
     # 返回状态
     if passed == total:
         print("\n✅ 所有测试通过，可以发布")

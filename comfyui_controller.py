@@ -99,7 +99,7 @@ class ComfyUIController:
         self.ws_url = f"ws://{server}/ws"
         self.client_id = str(uuid.uuid4())
         self.ws = None
-        
+
     def check_connection(self):
         """检查 ComfyUI 是否可连接"""
         try:
@@ -112,7 +112,7 @@ class ComfyUIController:
             print(f"   请确保 ComfyUI 正在运行：python main.py --listen 0.0.0.0")
             return False
         return False
-    
+
     def get_queue(self):
         """获取当前队列状态"""
         try:
@@ -126,7 +126,7 @@ class ComfyUIController:
         except Exception as e:
             print(f"❌ 获取队列失败：{e}")
         return None
-    
+
     def get_history(self, prompt_id=None):
         """获取历史记录"""
         try:
@@ -139,7 +139,7 @@ class ComfyUIController:
         except Exception as e:
             print(f"❌ 获取历史失败：{e}")
         return None
-    
+
     def get_models(self):
         """获取可用模型列表"""
         try:
@@ -157,7 +157,7 @@ class ComfyUIController:
         except Exception as e:
             print(f"❌ 获取模型列表失败：{e}")
         return []
-    
+
     def queue_prompt(self, workflow):
         """提交工作流到队列"""
         prompt = {
@@ -178,31 +178,31 @@ class ComfyUIController:
         except Exception as e:
             print(f"❌ 提交任务失败：{e}")
         return None
-    
+
     def monitor_progress(self, prompt_id, timeout=300):
         """监控生成进度"""
         self.ws = websocket.WebSocket()
         try:
             self.ws.connect(f"{self.ws_url}?clientId={self.client_id}", timeout=10)
             print(f"\n⏳ 等待生成完成...")
-            
+
             start_time = time.time()
             while True:
                 if time.time() - start_time > timeout:
                     print("⏰ 超时!")
                     break
-                
+
                 try:
                     msg = json.loads(self.ws.recv())
                     msg_type = msg.get('type')
                     data = msg.get('data', {})
-                    
+
                     if msg_type == 'progress':
                         step = data.get('value', 0)
                         total = data.get('max', 100)
                         percent = int(step / total * 100)
                         print(f"   进度：{percent}% ({step}/{total})")
-                    
+
                     elif msg_type == 'executing':
                         node = data.get('node')
                         if node is None:
@@ -210,35 +210,35 @@ class ComfyUIController:
                             break
                         else:
                             print(f"   执行节点：{node}")
-                    
+
                     elif msg_type == 'executed':
                         print(f"   节点 {data.get('node')} 执行完成")
-                    
+
                 except websocket.WebSocketTimeoutException:
                     continue
                 except Exception as e:
                     print(f"   WebSocket 错误：{e}")
                     break
-            
+
             return True
-            
+
         except Exception as e:
             print(f"❌ 监控失败：{e}")
             return False
         finally:
             if self.ws:
                 self.ws.close()
-    
+
     def download_images(self, prompt_id):
         """下载生成的图片"""
         history = self.get_history(prompt_id)
         if not history or prompt_id not in history:
             print("❌ 未找到历史记录")
             return []
-        
+
         outputs = history[prompt_id].get('outputs', {})
         downloaded = []
-        
+
         for node_id, node_output in outputs.items():
             if 'images' in node_output:
                 for img in node_output['images']:
@@ -249,69 +249,69 @@ class ComfyUIController:
                             'type': img['type']
                         }
                         url = f"{self.base_url}/view?{urllib.parse.urlencode(params)}"
-                        
+
                         try:
                             resp = requests.get(url, timeout=30)
                             if resp.status_code == 200:
                                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                                 filename = f"comfyui_{timestamp}_{img['filename']}"
                                 save_path = OUTPUT_DIR / filename
-                                
+
                                 with open(save_path, 'wb') as f:
                                     f.write(resp.content)
-                                
+
                                 print(f"✅ 已保存：{save_path}")
                                 downloaded.append(str(save_path))
                         except Exception as e:
                             print(f"❌ 下载失败：{e}")
-        
+
         return downloaded
-    
-    def create_workflow(self, prompt, negative="ugly, blurry, low quality", 
-                       model="v1-5-pruned-emaonly.ckpt", 
-                       width=512, height=512, 
+
+    def create_workflow(self, prompt, negative="ugly, blurry, low quality",
+                       model="v1-5-pruned-emaonly.ckpt",
+                       width=512, height=512,
                        steps=20, cfg=8, seed=None):
         """创建工作流"""
         workflow = json.loads(json.dumps(DEFAULT_WORKFLOW))  # 深拷贝
-        
+
         # 设置提示词
         workflow["6"]["inputs"]["text"] = prompt
         workflow["7"]["inputs"]["text"] = negative
-        
+
         # 设置模型
         workflow["4"]["inputs"]["ckpt_name"] = model
-        
+
         # 设置尺寸
         workflow["5"]["inputs"]["width"] = width
         workflow["5"]["inputs"]["height"] = height
-        
+
         # 设置采样参数
         workflow["3"]["inputs"]["steps"] = steps
         workflow["3"]["inputs"]["cfg"] = cfg
         workflow["3"]["inputs"]["seed"] = seed if seed else int(time.time() * 1000) % 1000000
-        
+
         return workflow
-    
+
     def generate(self, prompt, negative="ugly, blurry, low quality", **kwargs):
         """一键生成：创建工作流 + 提交 + 监控 + 下载"""
         print(f"\n🎨 开始生成:")
         print(f"   提示词：{prompt[:50]}..." if len(prompt) > 50 else f"   提示词：{prompt}")
         print(f"   负面词：{negative}")
-        
+
         # 创建工作流
         workflow = self.create_workflow(prompt, negative, **kwargs)
-        
+
         # 提交
         prompt_id = self.queue_prompt(workflow)
         if not prompt_id:
             return None
-        
+
         # 监控进度
         if self.monitor_progress(prompt_id):
             # 下载图片
             images = self.download_images(prompt_id)
             return images
-        
+
         return None
 
 
@@ -330,32 +330,32 @@ def main():
     parser.add_argument("--queue", action="store_true", help="查看队列状态")
     parser.add_argument("--models", action="store_true", help="查看可用模型")
     parser.add_argument("--history", type=str, help="查看指定 prompt_id 的历史")
-    
+
     args = parser.parse_args()
-    
+
     controller = ComfyUIController(args.server)
-    
+
     # 检查连接
     if not controller.check_connection():
         return 1
-    
+
     # 查看队列
     if args.queue:
         controller.get_queue()
         return 0
-    
+
     # 查看模型
     if args.models:
         controller.get_models()
         return 0
-    
+
     # 查看历史
     if args.history:
         history = controller.get_history(args.history)
         if history:
             print(json.dumps(history, indent=2, ensure_ascii=False))
         return 0
-    
+
     # 生成图片
     if args.prompt:
         images = controller.generate(
@@ -373,7 +373,7 @@ def main():
             for img in images:
                 print(f"   {img}")
         return 0
-    
+
     # 加载工作流文件
     if args.workflow:
         workflow_path = Path(args.workflow)
@@ -387,7 +387,7 @@ def main():
         else:
             print(f"❌ 工作流文件不存在：{args.workflow}")
         return 0
-    
+
     # 无参数时显示帮助
     parser.print_help()
     print(f"\n💡 示例:")

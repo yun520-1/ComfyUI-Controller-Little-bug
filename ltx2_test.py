@@ -53,7 +53,7 @@ def to_api(wf):
         elif ntype == "SaveVideo" and w: inputs.update({"filename_prefix": w[0], "format": w[1] if len(w) > 1 else "mp4"})
         elif ntype == "CreateVideo" and w: inputs["fps"] = w[0]
         elif ntype == "LTXVConditioning" and w: inputs["frame_rate"] = w[0]
-        
+
         for inp in node.get("inputs", []):
             iname, lid = inp.get("name"), inp.get("link")
             if lid and lid in links and iname:
@@ -68,7 +68,7 @@ def to_api(wf):
                             sid, so = str(rl[1]), rl[2]
                             break
                 inputs[iname] = [sid, so]
-        
+
         if inputs or ntype in ["CLIPTextEncode", "EmptyLTXVLatentVideo", "UnetLoaderGGUF", "VAELoaderKJ", "DualCLIPLoaderGGUF"]:
             api[nid] = {"class_type": ntype, "inputs": inputs}
     return api
@@ -144,7 +144,7 @@ def main():
     print("="*60)
     print("🎬 LTX2 仙人古装新闻视频")
     print("="*60)
-    
+
     # 检查连接
     try:
         r = requests.get(f"http://{SERVER}/system_stats", timeout=5)
@@ -152,34 +152,34 @@ def main():
     except:
         print(f"❌ 无法连接：{SERVER}")
         return 1
-    
+
     # 检查模型
     print("\n🔍 模型:")
     for name, path in [("unet", "ltx-2-19b-dev-Q3_K_S.gguf"), ("clip", "gemma-3-12b-it-qat-Q3_K_S.gguf"), ("vae", "ltx-2-19b-dev_video_vae.safetensors")]:
         p = Path("/Users/apple/Documents/lmd_data_root/apps/ComfyUI/models") / ("unet" if name == "unet" else "text_encoders" if name == "clip" else "vae") / path
         print(f"  {'✅' if p.exists() else '❌'} {name}: {path}")
-    
+
     # 显示主题
     print(f"\n📋 主题 ({len(TOPICS)}个):")
     for i, t in enumerate(TOPICS, 1): print(f"  {i}. {t['title']}")
-    
+
     # 选择
     c = input("\n选择 (1 所有/2 单个/3 测试): ").strip()
     topics = TOPICS if c == '1' else ([TOPICS[int(input("序号: ").strip())-1]] if c == '2' else [TOPICS[0]]) if c == '3' else []
     if not topics: return 1
-    
+
     # 生成
     results = []
     for i, topic in enumerate(topics, 1):
         print(f"\n{'='*60}\n[{i}/{len(topics)}] {topic['title']}\n{'='*60}")
-        
+
         wf = update_prompts(load_wf(), topic['prompt'], topic['negative'])
         api = to_api(wf)
         print(f"API 节点：{len(api)}")
-        
+
         cid = str(uuid.uuid4())
         pid = queue(api, cid)
-        
+
         if pid:
             if monitor(pid, cid):
                 files = download(pid, topic['title'])
@@ -188,15 +188,15 @@ def main():
                 results.append({"title": topic['title'], "success": False, "error": "超时"})
         else:
             results.append({"title": topic['title'], "success": False, "error": "提交失败"})
-        
+
         if i < len(topics): time.sleep(5)
-    
+
     # 汇总
     print(f"\n{'='*60}\n结果\n{'='*60}")
     ok = sum(1 for r in results if r.get('success'))
     print(f"✅ {ok}/{len(results)}")
     print(f"💾 {OUTPUT}")
-    
+
     return 0
 
 if __name__ == "__main__": exit(main())

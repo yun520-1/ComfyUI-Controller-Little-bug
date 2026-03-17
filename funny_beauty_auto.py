@@ -37,7 +37,7 @@ def create_workflow(prompt, negative, width=1024, height=512, seed=None):
     """创建工作流 - 使用正确的模型配置"""
     if seed is None:
         seed = int(time.time() * 1000) % 1000000
-    
+
     # 使用正确的模型配置
     workflow = {
         # 1. UNet 加载 (Z-Image-Turbo GGUF)
@@ -47,7 +47,7 @@ def create_workflow(prompt, negative, width=1024, height=512, seed=None):
                 "unet_name": "z_image_turbo-Q8_0.gguf"
             }
         },
-        
+
         # 2. CLIP 加载 (LTX2 CLIP)
         "2": {
             "class_type": "CLIPLoader",
@@ -56,7 +56,7 @@ def create_workflow(prompt, negative, width=1024, height=512, seed=None):
                 "type": "stable_diffusion"
             }
         },
-        
+
         # 3. VAE 加载
         "3": {
             "class_type": "VAELoader",
@@ -64,7 +64,7 @@ def create_workflow(prompt, negative, width=1024, height=512, seed=None):
                 "vae_name": "ae.safetensors"
             }
         },
-        
+
         # 4. 正向提示词
         "4": {
             "class_type": "CLIPTextEncode",
@@ -73,7 +73,7 @@ def create_workflow(prompt, negative, width=1024, height=512, seed=None):
                 "text": prompt
             }
         },
-        
+
         # 5. 负面提示词
         "5": {
             "class_type": "CLIPTextEncode",
@@ -82,7 +82,7 @@ def create_workflow(prompt, negative, width=1024, height=512, seed=None):
                 "text": negative
             }
         },
-        
+
         # 6. 空潜图
         "6": {
             "class_type": "EmptyLatentImage",
@@ -92,7 +92,7 @@ def create_workflow(prompt, negative, width=1024, height=512, seed=None):
                 "width": width
             }
         },
-        
+
         # 7. KSampler
         "7": {
             "class_type": "KSampler",
@@ -109,7 +109,7 @@ def create_workflow(prompt, negative, width=1024, height=512, seed=None):
                 "steps": 20
             }
         },
-        
+
         # 8. VAE 解码
         "8": {
             "class_type": "VAEDecode",
@@ -118,7 +118,7 @@ def create_workflow(prompt, negative, width=1024, height=512, seed=None):
                 "vae": ["3", 0]
             }
         },
-        
+
         # 9. 保存图片
         "9": {
             "class_type": "SaveImage",
@@ -128,7 +128,7 @@ def create_workflow(prompt, negative, width=1024, height=512, seed=None):
             }
         }
     }
-    
+
     return workflow
 
 
@@ -140,7 +140,7 @@ def queue_prompt(api, client_id):
             json={"prompt": api, "client_id": client_id},
             timeout=30
         )
-        
+
         if response.status_code == 200:
             result = response.json()
             prompt_id = result.get('prompt_id')
@@ -150,7 +150,7 @@ def queue_prompt(api, client_id):
             print(f"❌ 状态码：{response.status_code}")
             error_msg = response.text[:300]
             print(f"错误：{error_msg}")
-            
+
             # 解析错误信息
             try:
                 error_data = response.json()
@@ -171,23 +171,23 @@ def wait_for_completion(prompt_id, client_id, timeout=180):
     try:
         ws = websocket.WebSocket()
         ws.connect(f"ws://{SERVER}/ws?clientId={client_id}", timeout=10)
-        
+
         print(f"⏳ 等待生成完成...")
         start_time = time.time()
         last_pct = -1
-        
+
         while time.time() - start_time < timeout:
             try:
                 message = ws.recv(timeout=5)
                 if isinstance(message, str):
                     data = json.loads(message)
-                    
+
                     if data.get('type') == 'progress':
                         pct = int(data.get('data', {}).get('value', 0) / data.get('data', {}).get('max', 100) * 100)
                         if pct != last_pct:
                             print(f"   {pct}%...")
                             last_pct = pct
-                    
+
                     elif data.get('type') == 'executing':
                         if data.get('data', {}).get('node') is None:
                             print(f"✅ 生成完成!")
@@ -196,7 +196,7 @@ def wait_for_completion(prompt_id, client_id, timeout=180):
             except:
                 pass
             time.sleep(1)
-        
+
         ws.close()
         print(f"⏰ 超时 ({timeout}秒)")
         return False
@@ -213,7 +213,7 @@ def download_image(prompt_id):
             history = response.json()
             if prompt_id in history:
                 outputs = history[prompt_id].get('outputs', {})
-                
+
                 for node_id, output in outputs.items():
                     if 'images' in output:
                         for img in output['images']:
@@ -239,12 +239,12 @@ def download_image(prompt_id):
 def generate_image(scenario, index):
     """生成单张图片"""
     client_id = str(uuid.uuid4())
-    
+
     print(f"\n{'='*60}")
     print(f"[{index}/2] 生成：{scenario['title']}")
     print(f"{'='*60}")
     print(f"提示词：{scenario['prompt'][:80]}...")
-    
+
     # 创建工作流
     workflow = create_workflow(
         scenario['prompt'],
@@ -252,12 +252,12 @@ def generate_image(scenario, index):
         width=1024,
         height=512
     )
-    
+
     # 发送请求
     prompt_id = queue_prompt(workflow, client_id)
     if not prompt_id:
         return False
-    
+
     # 等待完成
     if wait_for_completion(prompt_id, client_id):
         # 下载图片
@@ -265,7 +265,7 @@ def generate_image(scenario, index):
         if filepath:
             print(f"✅ '{scenario['title']}' 生成成功!")
             return True
-    
+
     print(f"⚠️ '{scenario['title']}' 生成失败")
     return False
 
@@ -275,7 +275,7 @@ def main():
     print("😂 搞笑美女图片生成器")
     print("=" * 60)
     print()
-    
+
     # 检查连接
     print("🔍 检查 ComfyUI...")
     try:
@@ -289,20 +289,20 @@ def main():
         print("❌ ComfyUI 未运行")
         print("请启动：cd ~/ComfyUI && python main.py")
         return
-    
+
     print()
     print("📐 尺寸：1024x512")
     print("🎯 模型：Z-Image-Turbo-Q8_0.gguf")
     print(f"📁 输出：{OUTPUT}/")
     print()
-    
+
     # 生成
     success_count = 0
     for i, scenario in enumerate(SCENARIOS, 1):
         if generate_image(scenario, i):
             success_count += 1
         time.sleep(3)
-    
+
     print()
     print("=" * 60)
     print("📊 生成完成")

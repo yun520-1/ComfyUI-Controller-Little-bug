@@ -39,13 +39,13 @@ XIANXIA_NEWS_TOPICS = [
 
 class LTX2Generator:
     """LTX2 视频生成器"""
-    
+
     def __init__(self, server=COMFYUI_SERVER):
         self.server = server
         self.base_url = f"http://{server}"
         self.ws_url = f"ws://{server}/ws"
         self.client_id = str(uuid.uuid4())
-        
+
     def check_connection(self) -> bool:
         """检查连接"""
         try:
@@ -56,7 +56,7 @@ class LTX2Generator:
         except Exception as e:
             print(f"❌ 无法连接：{e}")
         return False
-    
+
     def check_models(self) -> bool:
         """检查本地模型"""
         print(f"\n🔍 检查 LTX2 模型...")
@@ -66,7 +66,7 @@ class LTX2Generator:
             "vae": COMFYUI_PATH / "models" / "vae" / LTX2_VAE,
             "workflow": LTX2_WORKFLOW
         }
-        
+
         all_ok = True
         for name, path in models.items():
             if path.exists():
@@ -76,12 +76,12 @@ class LTX2Generator:
                 print(f"   ❌ {name}: 缺失")
                 all_ok = False
         return all_ok
-    
+
     def load_workflow(self) -> Dict:
         """加载工作流"""
         with open(LTX2_WORKFLOW, 'r', encoding='utf-8') as f:
             return json.load(f)
-    
+
     def update_prompts(self, workflow: Dict, prompt: str, negative: str) -> Dict:
         """更新提示词"""
         wf = copy.deepcopy(workflow)
@@ -94,24 +94,24 @@ class LTX2Generator:
                     else:
                         node["widgets_values"][0] = prompt
         return wf
-    
+
     def convert_to_api(self, workflow: Dict) -> Dict:
         """转换为 API 格式"""
         api_prompt = {}
         nodes = workflow.get("nodes", [])
         links = workflow.get("links", [])
         link_map = {link[0]: link for link in links}
-        
+
         for node in nodes:
             node_id = str(node["id"])
             node_type = node.get("type", "")
-            
+
             if node_type in ["Reroute", "Note", "PrimitiveNode", "GetImageSize"]:
                 continue
-            
+
             inputs = {}
             widgets = node.get("widgets_values", [])
-            
+
             # Widget 处理
             if node_type == "CLIPTextEncode" and widgets: inputs["text"] = widgets[0]
             elif node_type == "EmptyLTXVLatentVideo" and len(widgets) >= 4:
@@ -131,14 +131,14 @@ class LTX2Generator:
             elif node_type == "SaveVideo" and widgets:
                 inputs.update({"filename_prefix": widgets[0], "format": widgets[1] if len(widgets) > 1 else "mp4"})
             elif node_type == "CreateVideo" and widgets: inputs["fps"] = widgets[0]
-            
+
             # 连接处理
             for inp in node.get("inputs", []):
                 input_name, link_id = inp.get("name"), inp.get("link")
                 if link_id and link_id in link_map and input_name:
                     link = link_map[link_id]
                     src_node_id, src_output = str(link[1]), link[2]
-                    
+
                     # 跳过 Reroute
                     src_node = next((n for n in nodes if str(n["id"]) == src_node_id), None)
                     if src_node and src_node.get("type") == "Reroute":
@@ -148,14 +148,14 @@ class LTX2Generator:
                                 r_link = link_map[r_link_id]
                                 src_node_id, src_output = str(r_link[1]), r_link[2]
                                 break
-                    
+
                     inputs[input_name] = [src_node_id, src_output]
-            
+
             if inputs or node_type in ["CLIPTextEncode", "EmptyLTXVLatentVideo", "UnetLoaderGGUF", "VAELoaderKJ", "DualCLIPLoaderGGUF"]:
                 api_prompt[node_id] = {"class_type": node_type, "inputs": inputs}
-        
+
         return api_prompt
-    
+
     def queue_prompt(self, api_prompt: Dict) -> str:
         """提交任务"""
         try:
@@ -167,7 +167,7 @@ class LTX2Generator:
         except Exception as e:
             print(f"❌ 提交失败：{e}")
         return None
-    
+
     def monitor(self, prompt_id: str, timeout: int = 600) -> bool:
         """监控进度"""
         try:
@@ -176,11 +176,11 @@ class LTX2Generator:
             print(f"⏳ 生成中...", end=" ", flush=True)
             start = time.time()
             last_pct = -1
-            
+
             while time.time() - start < timeout:
                 if int(time.time() - start) % 30 == 0 and int(time.time() - start) > 0:
                     print(f"{int((time.time() - start)/60)}min", end=" ", flush=True)
-                
+
                 try:
                     msg = json.loads(ws.recv())
                     if msg.get('type') == 'progress':
@@ -194,13 +194,13 @@ class LTX2Generator:
                         return True
                 except:
                     continue
-            
+
             ws.close()
             return False
         except Exception as e:
             print(f"❌ 监控失败：{e}")
             return False
-    
+
     def download(self, prompt_id: str, title: str) -> List[str]:
         """下载结果"""
         try:
@@ -208,11 +208,11 @@ class LTX2Generator:
             history = resp.json()
             if prompt_id not in history:
                 return []
-            
+
             outputs = history[prompt_id].get('outputs', {})
             downloaded = []
             OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-            
+
             for node_id, output in outputs.items():
                 for key, items in [('video', output.get('video', [])), ('images', output.get('images', []))]:
                     for item in items:
@@ -232,43 +232,43 @@ class LTX2Generator:
         except Exception as e:
             print(f"❌ 下载失败：{e}")
             return []
-    
+
     def generate(self, topic: Dict, idx: int, total: int) -> Dict:
         """生成单个视频"""
         print(f"\n{'='*70}\n[{idx}/{total}] 📰 {topic['title']}\n📝 {topic['news']}\n🎨 {topic['prompt'][:50]}...\n{'='*70}")
-        
+
         # 加载并更新
         print(f"\n📋 加载工作流...")
         workflow = self.load_workflow()
         print(f"\n🔄 更新提示词...")
         workflow = self.update_prompts(workflow, topic['prompt'], topic['negative'])
-        
+
         # 转换并提交
         print(f"\n🔄 转换 API 格式...")
         api_prompt = self.convert_to_api(workflow)
         print(f"   API 节点：{len(api_prompt)}")
-        
+
         prompt_id = self.queue_prompt(api_prompt)
         if not prompt_id:
             return {"success": False, "error": "提交失败", "title": topic['title']}
-        
+
         if not self.monitor(prompt_id):
             return {"success": False, "error": "生成失败", "title": topic['title']}
-        
+
         files = self.download(prompt_id, topic['title'])
         return {"success": len(files) > 0, "files": files, "title": topic['title']}
-    
+
     def batch_generate(self, topics: List[Dict]) -> List[Dict]:
         """批量生成"""
         results = []
         print(f"\n🚀 批量生成 {len(topics)} 个视频...")
         print(f"💾 {OUTPUT_DIR}\n")
-        
+
         for i, topic in enumerate(topics, 1):
             results.append(self.generate(topic, i, len(topics)))
             if i < len(topics):
                 time.sleep(5)
-        
+
         return results
 
 
@@ -277,25 +277,25 @@ def main():
     print("🎬 LTX2 仙人古装新闻视频生成器")
     print("📅 2026 年 3 月最新新闻")
     print("="*70)
-    
+
     gen = LTX2Generator()
-    
+
     if not gen.check_connection():
         return 1
-    
+
     if not gen.check_models():
         print("\n⚠️  部分模型缺失")
-    
+
     # 显示主题
     print(f"\n📋 主题 ({len(XIANXIA_NEWS_TOPICS)}个):")
     for i, t in enumerate(XIANXIA_NEWS_TOPICS, 1):
         print(f"  {i}. {t['title']}")
-    
+
     # 选择
     print(f"\n请选择:")
     print(f"  1. 生成所有  2. 生成单个  3. 测试第一个")
     choice = input("\n输入 (1/2/3): ").strip()
-    
+
     topics = []
     if choice == '1':
         topics = XIANXIA_NEWS_TOPICS
@@ -304,27 +304,27 @@ def main():
         topics = [XIANXIA_NEWS_TOPICS[idx-1]] if 1 <= idx <= 5 else []
     elif choice == '3':
         topics = [XIANXIA_NEWS_TOPICS[0]]
-    
+
     if not topics:
         print("无效选择")
         return 1
-    
+
     # 生成
     results = gen.batch_generate(topics)
-    
+
     # 汇总
     print(f"\n{'='*70}\n📊 结果\n{'='*70}")
     success = sum(1 for r in results if r.get('success'))
     print(f"✅ 成功：{success}/{len(results)}")
     print(f"💾 {OUTPUT_DIR}")
-    
+
     # 报告
     report = {"timestamp": datetime.now().isoformat(), "success": success, "results": results}
     report_file = OUTPUT_DIR / f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     with open(report_file, 'w', encoding='utf-8') as f:
         json.dump(report, f, indent=2, ensure_ascii=False)
     print(f"📄 {report_file}")
-    
+
     return 0
 
 

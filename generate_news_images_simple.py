@@ -39,7 +39,7 @@ def generate_news_image(prompt, width=1024, height=512):
     """生成单张新闻图片"""
     server_address = "127.0.0.1:8188"
     seed = int(time.time() * 1000) % (2**32)
-    
+
     # 简化工作流（需要实际模型名称）
     workflow = {
         "3": {
@@ -94,7 +94,7 @@ def generate_news_image(prompt, width=1024, height=512):
             }
         }
     }
-    
+
     # 尝试获取模型列表
     try:
         response = requests.get(f'http://{server_address}/object_info', timeout=5)
@@ -119,7 +119,7 @@ def generate_news_image(prompt, width=1024, height=512):
             "class_type": "CheckpointLoaderSimple",
             "inputs": {"ckpt_name": "model.safetensors"}
         }
-    
+
     # 发送请求
     try:
         response = requests.post(f'http://{server_address}/prompt', json={"prompt": workflow})
@@ -127,7 +127,7 @@ def generate_news_image(prompt, width=1024, height=512):
             result = response.json()
             prompt_id = result.get('prompt_id')
             print(f"✅ 请求成功 - Prompt ID: {prompt_id}")
-            
+
             # 等待完成
             print(f"⏳ 等待生成完成...")
             if wait_for_completion(prompt_id):
@@ -140,7 +140,7 @@ def generate_news_image(prompt, width=1024, height=512):
             print(f"响应：{response.text[:200]}")
     except Exception as e:
         print(f"❌ 错误：{e}")
-    
+
     return False
 
 def main():
@@ -148,7 +148,7 @@ def main():
     print("📰 新闻图片生成器 (1024x512)")
     print("=" * 60)
     print()
-    
+
     # 检查 ComfyUI
     print("🔍 检查 ComfyUI 服务...")
     try:
@@ -163,25 +163,25 @@ def main():
         print("请启动 ComfyUI:")
         print("  cd ~/ComfyUI && python main.py")
         return
-    
+
     print()
-    
+
     # 检查队列
     queue_size = get_queue_remaining()
     if queue_size > 0:
         print(f"⚠️ 当前队列中有 {queue_size} 个任务")
         print()
-    
+
     # 提示词
     prompts = [
         "professional news broadcast studio, modern TV anchor desk, breaking news banner, 4K ultra realistic, broadcast quality lighting, cinematic",
         "digital news headline background, futuristic screen display, latest news ticker, blue and red theme, professional broadcast studio, 4K"
     ]
-    
+
     print("🎨 开始生成 2 张新闻图片...")
     print(f"📐 尺寸：1024x512")
     print()
-    
+
     for i, prompt in enumerate(prompts, 1):
         print(f"[{i}/2] 生成第 {i} 张图片...")
         print(f"提示词：{prompt[:60]}...")
@@ -189,7 +189,7 @@ def main():
         if success:
             print(f"✅ 第 {i} 张图片已加入队列")
         print()
-    
+
     print("=" * 60)
     print("📊 生成完成")
     print("=" * 60)

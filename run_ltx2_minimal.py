@@ -35,7 +35,7 @@ def create_minimal_workflow(prompt_text, negative_text):
     只包含必要的节点
     """
     seed = int(time.time() * 1000) % 1000000
-    
+
     workflow = {
         # 1. 加载 UNet 模型 (LTX2)
         "1": {
@@ -174,7 +174,7 @@ def create_minimal_workflow(prompt_text, negative_text):
             }
         }
     }
-    
+
     return workflow
 
 
@@ -187,7 +187,7 @@ def queue_prompt(api_prompt, client_id):
             json={"prompt": api_prompt, "client_id": client_id},
             timeout=30
         )
-        
+
         if resp.status_code == 200:
             data = resp.json()
             prompt_id = data.get('prompt_id')
@@ -210,21 +210,21 @@ def monitor_progress(prompt_id, client_id, timeout=600):
     try:
         ws = websocket.WebSocket()
         ws.connect(f"ws://{COMFYUI_SERVER}/ws?clientId={client_id}", timeout=10)
-        
+
         print(f"⏳ 视频生成中...", end=" ", flush=True)
         start_time = time.time()
         last_percent = -1
-        
+
         while time.time() - start_time < timeout:
             elapsed = time.time() - start_time
             if int(elapsed) % 30 == 0 and int(elapsed) > 0:
                 print(f"{int(elapsed/60)}min", end=" ", flush=True)
-            
+
             try:
                 msg = json.loads(ws.recv())
                 msg_type = msg.get('type')
                 data = msg.get('data', {})
-                
+
                 if msg_type == 'progress':
                     step = data.get('value', 0)
                     total = data.get('max', 100)
@@ -243,7 +243,7 @@ def monitor_progress(prompt_id, client_id, timeout=600):
                     return True
             except:
                 continue
-        
+
         ws.close()
         print("⏰ 超时")
         return False
@@ -257,13 +257,13 @@ def download_result(prompt_id, news_title):
     try:
         resp = requests.get(f"http://{COMFYUI_SERVER}/history/{prompt_id}", timeout=10)
         history = resp.json()
-        
+
         if prompt_id not in history:
             return []
-        
+
         outputs = history[prompt_id].get('outputs', {})
         downloaded = []
-        
+
         for node_id, output in outputs.items():
             if 'video' in output:
                 for vid in output['video']:
@@ -271,25 +271,25 @@ def download_result(prompt_id, news_title):
                     if filename:
                         params = f"?filename={filename}&subfolder={vid.get('subfolder', '')}&type={vid.get('type', 'output')}"
                         url = f"http://{COMFYUI_SERVER}/view{params}"
-                        
+
                         print(f"  📥 下载...")
                         resp = requests.get(url, timeout=120)
                         if resp.status_code == 200:
                             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
                             safe_title = news_title.replace(" ", "_")
                             filepath = OUTPUT_DIR / f"{ts}_{safe_title}.mp4"
-                            
+
                             with open(filepath, 'wb') as f:
                                 f.write(resp.content)
-                            
+
                             print(f"  ✅ {filepath.name}")
                             downloaded.append(str(filepath))
-                            
+
                             # 元数据
                             meta = {"title": news_title, "timestamp": datetime.now().isoformat(), "model": "LTX-2-19B"}
                             with open(filepath.with_suffix('.json'), 'w') as f:
                                 json.dump(meta, f, indent=2)
-        
+
         return downloaded
     except Exception as e:
         print(f"❌ 下载失败：{e}")
@@ -302,25 +302,25 @@ def generate(topic, index, total):
     print(f"[{index}/{total}] 📰 {topic['title']}")
     print(f"🎨 {topic['prompt'][:50]}...")
     print(f"{'='*70}")
-    
+
     # 创建工作流
     print(f"\n📝 创建工作流...")
     workflow = create_minimal_workflow(topic['prompt'], topic['negative'])
     print(f"   节点数：{len(workflow)}")
-    
+
     # 提交
     client_id = str(uuid.uuid4())
     prompt_id = queue_prompt(workflow, client_id)
     if not prompt_id:
         return {"success": False, "error": "提交失败", "title": topic['title']}
-    
+
     # 监控
     if not monitor_progress(prompt_id, client_id):
         return {"success": False, "error": "生成失败", "title": topic['title']}
-    
+
     # 下载
     files = download_result(prompt_id, topic['title'])
-    
+
     return {"success": len(files) > 0, "files": files, "title": topic['title']}
 
 
@@ -329,7 +329,7 @@ def main():
     print("🎬 LTX2 仙人古装新闻视频 - 最小化 API 版")
     print("📅 2026 年 3 月最新新闻")
     print("="*70)
-    
+
     # 检查连接
     try:
         resp = requests.get(f"http://{COMFYUI_SERVER}/system_stats", timeout=5)
@@ -341,20 +341,20 @@ def main():
     except:
         print("❌ 无法连接 ComfyUI")
         return 1
-    
+
     print(f"\n📋 主题 ({len(NEWS_TOPICS)}个):")
     for i, t in enumerate(NEWS_TOPICS, 1):
         print(f"  {i}. {t['title']}")
-    
+
     # 选择模式
     print(f"\n请选择:")
     print(f"  1. 生成所有")
     print(f"  2. 生成单个")
     print(f"  3. 测试第一个")
-    
+
     choice = input("\n输入 (1/2/3): ").strip()
     results = []
-    
+
     if choice == '1':
         for i, topic in enumerate(NEWS_TOPICS, 1):
             results.append(generate(topic, i, len(NEWS_TOPICS)))
@@ -369,20 +369,20 @@ def main():
         results.append(generate(NEWS_TOPICS[0], 1, 1))
     else:
         return 1
-    
+
     # 汇总
     print(f"\n{'='*70}")
     success = sum(1 for r in results if r.get('success'))
     print(f"✅ 成功：{success}/{len(results)}")
     print(f"💾 {OUTPUT_DIR}")
-    
+
     # 保存报告
     report = {"timestamp": datetime.now().isoformat(), "success": success, "results": results}
     report_file = OUTPUT_DIR / f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     with open(report_file, 'w') as f:
         json.dump(report, f, indent=2)
     print(f"📄 {report_file}")
-    
+
     return 0
 
 

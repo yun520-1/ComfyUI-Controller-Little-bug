@@ -30,7 +30,7 @@ def convert_workflow_to_api(workflow_json, prompt_text, negative_text):
     """
     nodes = workflow_json.get("nodes", [])
     links = workflow_json.get("links", [])
-    
+
     # 创建 link 查找表：link_id -> (src_node_id, src_slot, dst_node_id, dst_slot)
     link_map = {}
     for link in links:
@@ -41,27 +41,27 @@ def convert_workflow_to_api(workflow_json, prompt_text, negative_text):
             "dst": dst_node_id,
             "dst_slot": dst_slot
         }
-    
+
     # 创建节点查找表
     node_map = {str(node["id"]): node for node in nodes}
-    
+
     # 构建 API prompt
     api_prompt = {}
-    
+
     for node in nodes:
         node_id = str(node["id"])
         node_type = node.get("type", "")
-        
+
         # 跳过不需要提交的节点
         if node_type in ["Note"]:
             continue
-        
+
         # 提取 inputs
         inputs = {}
-        
+
         # 1. 处理 widget 值
         widgets = node.get("widgets_values", [])
-        
+
         if node_type == "CLIPTextEncode":
             if widgets and isinstance(widgets[0], str):
                 current = widgets[0]
@@ -126,17 +126,17 @@ def convert_workflow_to_api(workflow_json, prompt_text, negative_text):
             pass
         elif node_type == "Reroute":
             continue  # 跳过 Reroute，直接连接
-        
+
         # 2. 处理输入连接
         for inp in node.get("inputs", []):
             input_name = inp.get("name")
             link_id = inp.get("link")
-            
+
             if link_id and link_id in link_map and input_name:
                 link_info = link_map[link_id]
                 src_node_id = link_info["src"]
                 src_slot = link_info["src_slot"]
-                
+
                 # 跳过 Reroute 节点，找到实际源
                 src_node = node_map.get(src_node_id, {})
                 if src_node.get("type") == "Reroute":
@@ -148,16 +148,16 @@ def convert_workflow_to_api(workflow_json, prompt_text, negative_text):
                             src_node_id = r_link["src"]
                             src_slot = r_link["src_slot"]
                             break
-                
+
                 inputs[input_name] = [src_node_id, int(src_slot)]
-        
+
         # 添加到 API prompt
         if inputs or node_type in ["CLIPTextEncode", "EmptyLTXVLatentVideo", "UnetLoaderGGUF", "VAELoaderKJ", "DualCLIPLoaderGGUF", "SaveVideo", "CreateVideo"]:
             api_prompt[node_id] = {
                 "class_type": node_type,
                 "inputs": inputs
             }
-    
+
     return api_prompt
 
 
@@ -189,7 +189,7 @@ def monitor(pid, cid, timeout=600):
         print("⏳ ", end="", flush=True)
         start = time.time()
         last_pct = -1
-        
+
         while time.time() - start < timeout:
             try:
                 msg = json.loads(ws.recv())
@@ -219,10 +219,10 @@ def download(pid, title):
         if pid not in h:
             print("❌ 无历史记录")
             return []
-        
+
         outs = h[pid].get('outputs', {})
         dl = []
-        
+
         for nid, out in outs.items():
             for k, items in [('video', out.get('video', [])), ('images', out.get('images', []))]:
                 for it in items:
@@ -238,7 +238,7 @@ def download(pid, title):
                                 f.write(r2.content)
                             print(f"  ✅ {fp.name}")
                             dl.append(str(fp))
-                            
+
                             meta = {"title": title, "timestamp": datetime.now().isoformat(), "model": "LTX-2-19B", "style": "xianxia"}
                             with open(fp.with_suffix('.json'), 'w', encoding='utf-8') as f:
                                 json.dump(meta, f, indent=2, ensure_ascii=False)
@@ -254,28 +254,28 @@ def generate(topic, idx, total):
     print(f"[{idx}/{total}] 📰 {topic['title']}")
     print(f"📝 {topic['prompt'][:50]}...")
     print(f"{'='*60}")
-    
+
     # 加载工作流
     print(f"\n📋 加载工作流...")
     with open(WORKFLOW_FILE, 'r', encoding='utf-8') as f:
         workflow = json.load(f)
     print(f"   节点：{workflow.get('last_node_id', 0)}, 连接：{len(workflow.get('links', []))}")
-    
+
     # 转换为 API 格式
     print(f"\n🔄 转换 API 格式...")
     api = convert_workflow_to_api(workflow, topic['prompt'], topic['negative'])
     print(f"   API 节点：{len(api)}")
-    
+
     # 提交
     cid = str(uuid.uuid4())
     pid = queue(api, cid)
     if not pid:
         return {"success": False, "error": "提交失败", "title": topic['title']}
-    
+
     # 监控
     if not monitor(pid, cid):
         return {"success": False, "error": "超时", "title": topic['title']}
-    
+
     # 下载
     files = download(pid, topic['title'])
     return {"success": len(files) > 0, "files": files, "title": topic['title']}
@@ -286,7 +286,7 @@ def main():
     print("🎬 LTX2 仙人古装新闻视频 - 正确转换版")
     print("📅 2026 年 3 月最新新闻")
     print("="*60)
-    
+
     # 检查连接
     try:
         r = requests.get(f"http://{SERVER}/system_stats", timeout=5)
@@ -294,23 +294,23 @@ def main():
     except:
         print(f"❌ 无法连接：{SERVER}")
         return 1
-    
+
     # 检查工作流
     if not WORKFLOW_FILE.exists():
         print(f"❌ 工作流不存在：{WORKFLOW_FILE}")
         return 1
     print(f"✅ 工作流：{WORKFLOW_FILE.name}")
-    
+
     # 显示主题
     print(f"\n📋 主题 ({len(TOPICS)}个):")
     for i, t in enumerate(TOPICS, 1):
         print(f"  {i}. {t['title']}")
-    
+
     # 选择模式
     print(f"\n请选择:")
     print(f"  1. 生成所有  2. 生成单个  3. 测试第一个")
     c = input("\n输入 (1/2/3): ").strip()
-    
+
     topics = []
     if c == '1':
         topics = TOPICS
@@ -319,11 +319,11 @@ def main():
         topics = [TOPICS[idx-1]] if 1 <= idx <= 5 else []
     elif c == '3':
         topics = [TOPICS[0]]
-    
+
     if not topics:
         print("❌ 无效选择")
         return 1
-    
+
     # 生成
     print(f"\n🚀 开始生成...")
     results = []
@@ -332,7 +332,7 @@ def main():
         if i < len(topics):
             print("\n⏸️  等待 5 秒...")
             time.sleep(5)
-    
+
     # 汇总
     print(f"\n{'='*60}")
     print("📊 结果")
@@ -340,17 +340,17 @@ def main():
     ok = sum(1 for r in results if r.get('success'))
     print(f"✅ 成功：{ok}/{len(results)}")
     print(f"💾 {OUTPUT}")
-    
+
     # 报告
     report = {"timestamp": datetime.now().isoformat(), "success": ok, "results": results}
     report_file = OUTPUT / f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     with open(report_file, 'w', encoding='utf-8') as f:
         json.dump(report, f, indent=2, ensure_ascii=False)
     print(f"📄 {report_file}")
-    
+
     if ok > 0:
         print(f"\n🎉 完成！")
-    
+
     return 0
 
 

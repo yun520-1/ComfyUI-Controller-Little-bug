@@ -34,11 +34,11 @@ GENERATE_TYPES = {
 
 class PromptSearcher:
     """提示词搜索器"""
-    
+
     def search_duanzi(self) -> List[Dict]:
         """搜索搞笑段子"""
         print(f"\n🔍 搜索最新搞笑段子...")
-        
+
         duanzi_list = [
             {
                 "title": "上班迟到",
@@ -66,10 +66,10 @@ class PromptSearcher:
                 "prompt": "funny cartoon style, gym locker room, person with towel, shower scene, humor, bright colors"
             }
         ]
-        
+
         print(f"✅ 找到 {len(duanzi_list)} 个搞笑段子")
         return duanzi_list
-    
+
     def generate_prompt(self, gen_type: str, custom_topic: str = None) -> str:
         """根据类型生成提示词"""
         type_prompts = {
@@ -82,18 +82,18 @@ class PromptSearcher:
             "scifi": "science fiction, spaceship, alien planet, futuristic technology, detailed",
             "news": "news illustration, professional, high quality, detailed"
         }
-        
+
         base_prompt = type_prompts.get(gen_type, type_prompts["funny"])
-        
+
         if custom_topic:
             base_prompt = f"{custom_topic}, {base_prompt}"
-        
+
         return base_prompt
 
 
 class ZImageController:
     """Z-Image-Turbo 控制器"""
-    
+
     def __init__(self, server=COMFYUI_SERVER):
         self.server = server
         self.base_url = f"http://{server}"
@@ -101,7 +101,7 @@ class ZImageController:
         self.client_id = str(uuid.uuid4())
         self.prompt_searcher = PromptSearcher()
         self.unet_model = Z_IMAGE_MODEL
-        
+
     def check_connection(self) -> bool:
         """检查连接"""
         try:
@@ -112,7 +112,7 @@ class ZImageController:
         except Exception as e:
             print(f"❌ 无法连接：{e}")
         return False
-    
+
     def check_model(self) -> bool:
         """检查 Z-Image-Turbo 模型"""
         model_path = COMFYUI_PATH / "models" / "unet" / self.unet_model
@@ -123,18 +123,18 @@ class ZImageController:
         else:
             print(f"❌ 模型不存在：{model_path}")
             return False
-    
-    def create_workflow(self, prompt: str, negative: str = "", 
+
+    def create_workflow(self, prompt: str, negative: str = "",
                        width: int = 1024, height: int = 512,
-                       steps: int = 20, cfg: float = 7, 
+                       steps: int = 20, cfg: float = 7,
                        seed: int = None) -> Dict:
         """创建 Z-Image-Turbo 工作流"""
         if seed is None:
             seed = int(time.time() * 1000) % 1000000
-        
+
         if not negative:
             negative = "blurry, low quality, ugly, duplicate, morbid, mutilated, poorly drawn"
-        
+
         return {
             # 1. UNet 加载 (Z-Image-Turbo)
             "1": {
@@ -190,7 +190,7 @@ class ZImageController:
                 }
             }
         }
-    
+
     def queue_prompt(self, workflow: Dict) -> str:
         """提交任务"""
         try:
@@ -199,7 +199,7 @@ class ZImageController:
                 json={"prompt": workflow, "client_id": self.client_id},
                 timeout=30
             )
-            
+
             if resp.status_code == 200:
                 pid = resp.json().get('prompt_id')
                 print(f"✅ 已提交 (ID: {pid})")
@@ -214,17 +214,17 @@ class ZImageController:
         except Exception as e:
             print(f"❌ 提交失败：{e}")
         return None
-    
+
     def monitor_progress(self, prompt_id: str, timeout: int = 300) -> bool:
         """监控进度"""
         try:
             ws = websocket.WebSocket()
             ws.connect(f"{self.ws_url}?clientId={self.client_id}", timeout=10)
-            
+
             print(f"⏳ 生成中...", end=" ", flush=True)
             start_time = time.time()
             last_pct = -1
-            
+
             while time.time() - start_time < timeout:
                 try:
                     msg = json.loads(ws.recv())
@@ -240,27 +240,27 @@ class ZImageController:
                         return True
                 except:
                     continue
-            
+
             ws.close()
             return False
         except Exception as e:
             print(f"❌ 监控失败：{e}")
             return False
-    
+
     def download_result(self, prompt_id: str, title: str = "") -> List[str]:
         """下载结果"""
         try:
             resp = requests.get(f"{self.base_url}/history/{prompt_id}", timeout=10)
             history = resp.json()
-            
+
             if prompt_id not in history:
                 print("❌ 未找到历史记录")
                 return []
-            
+
             outputs = history[prompt_id].get('outputs', {})
             downloaded = []
             OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-            
+
             for node_id, output in outputs.items():
                 if 'images' in output:
                     for img in output['images']:
@@ -268,19 +268,19 @@ class ZImageController:
                         if filename:
                             params = f"?filename={filename}&subfolder={img.get('subfolder', '')}&type={img.get('type', 'output')}"
                             url = f"{self.base_url}/view{params}"
-                            
+
                             resp = requests.get(url, timeout=30)
                             if resp.status_code == 200:
                                 ts = datetime.now().strftime("%Y%m%d_%H%M%S")
                                 safe_title = title.replace(" ", "_") if title else "image"
                                 filepath = OUTPUT_DIR / f"{ts}_{safe_title}.png"
-                                
+
                                 with open(filepath, 'wb') as f:
                                     f.write(resp.content)
-                                
+
                                 print(f"  ✅ {filepath.name}")
                                 downloaded.append(str(filepath))
-                                
+
                                 meta = {
                                     "title": title,
                                     "timestamp": datetime.now().isoformat(),
@@ -289,12 +289,12 @@ class ZImageController:
                                 }
                                 with open(filepath.with_suffix('.json'), 'w', encoding='utf-8') as f:
                                     json.dump(meta, f, indent=2, ensure_ascii=False)
-            
+
             return downloaded
         except Exception as e:
             print(f"❌ 下载失败：{e}")
             return []
-    
+
     def auto_generate(self, count: int, gen_type: str, custom_topic: str = None) -> List[Dict]:
         """自动生成"""
         print(f"\n🚀 开始生成")
@@ -303,24 +303,24 @@ class ZImageController:
         print(f"   模型：{self.unet_model}")
         if custom_topic:
             print(f"   主题：{custom_topic}")
-        
+
         results = []
-        
+
         if gen_type == "funny":
             duanzi_list = self.prompt_searcher.search_duanzi()
             topics = duanzi_list[:count] if count <= len(duanzi_list) else duanzi_list + [duanzi_list[0]] * (count - len(duanzi_list))
-            
+
             for i, topic in enumerate(topics, 1):
                 print(f"\n{'='*70}")
                 print(f"[{i}/{count}] 📖 {topic.get('title', f'图片{i}')}")
                 print(f"💬 {topic.get('content', '')[:60]}...")
-                
+
                 prompt = topic.get('prompt', self.prompt_searcher.generate_prompt(gen_type, custom_topic))
                 workflow = self.create_workflow(prompt, width=1024, height=512, steps=25)
-                
+
                 cid = str(uuid.uuid4())
                 pid = self.queue_prompt(workflow)
-                
+
                 if pid:
                     if self.monitor_progress(pid, cid):
                         files = self.download_result(pid, topic.get('title', f'image{i}'))
@@ -334,13 +334,13 @@ class ZImageController:
             for i in range(count):
                 print(f"\n{'='*70}")
                 print(f"[{i+1}/{count}] 🎨 生成图片 {i+1}")
-                
+
                 prompt = self.prompt_searcher.generate_prompt(gen_type, custom_topic)
                 workflow = self.create_workflow(prompt, width=1024, height=512, steps=25)
-                
+
                 cid = str(uuid.uuid4())
                 pid = self.queue_prompt(workflow)
-                
+
                 if pid:
                     if self.monitor_progress(pid, cid):
                         files = self.download_result(pid, f"{gen_type}_{i+1}")
@@ -350,10 +350,10 @@ class ZImageController:
                             "title": f"{gen_type}_{i+1}",
                             "prompt": prompt
                         })
-                
+
                 if i < count - 1:
                     time.sleep(2)
-        
+
         return results
 
 
@@ -362,40 +362,40 @@ def main():
     print("🎨 ComfyUI 全自动控制器 - Z-Image-Turbo")
     print("🚀 无需下载额外模型！")
     print("="*70)
-    
+
     controller = ZImageController()
-    
+
     # 检查连接
     if not controller.check_connection():
         print(f"\n❌ ComfyUI 未运行")
         print(f"💡 启动：cd /Users/apple/Documents/lmd_data_root/apps/ComfyUI")
         print(f"   python main.py --listen 0.0.0.0 --port 8188")
         return 1
-    
+
     # 检查模型
     if not controller.check_model():
         print(f"\n❌ Z-Image-Turbo 模型不存在")
         return 1
-    
+
     # 显示类型
     print(f"\n📋 可用类型:")
     for key, name in GENERATE_TYPES.items():
         print(f"   {key} - {name}")
-    
+
     # 输入
     try:
         count = int(input("\n需要生成多少张图片？(1-10): ").strip())
         count = max(1, min(10, count))
-        
+
         gen_type = input("生成类型 (funny/portrait/landscape/anime/cyberpunk/fantasy/scifi/news): ").strip().lower()
         if gen_type not in GENERATE_TYPES:
             gen_type = "funny"
-        
+
         custom_topic = input("自定义主题（可选）: ").strip()
-        
+
         # 生成
         results = controller.auto_generate(count, gen_type, custom_topic if custom_topic else None)
-        
+
         # 汇总
         print(f"\n{'='*70}")
         print("📊 结果")
@@ -403,7 +403,7 @@ def main():
         success = sum(1 for r in results if r.get('success'))
         print(f"✅ 成功：{success}/{count}")
         print(f"💾 {OUTPUT_DIR}")
-        
+
         # 报告
         report = {
             "timestamp": datetime.now().isoformat(),
@@ -417,17 +417,17 @@ def main():
         with open(report_file, 'w', encoding='utf-8') as f:
             json.dump(report, f, indent=2, ensure_ascii=False)
         print(f"📄 {report_file}")
-        
+
         if success > 0:
             print(f"\n🎉 完成！")
-        
+
     except KeyboardInterrupt:
         print(f"\n\n⚠️  中断")
     except Exception as e:
         print(f"\n❌ {e}")
         import traceback
         traceback.print_exc()
-    
+
     return 0
 
 
@@ -436,7 +436,7 @@ if __name__ == "__main__":
         count = int(sys.argv[1]) if sys.argv[1].isdigit() else 2
         gen_type = sys.argv[2] if len(sys.argv) > 2 else "funny"
         custom = sys.argv[3] if len(sys.argv) > 3 else None
-        
+
         controller = ZImageController()
         if controller.check_connection() and controller.check_model():
             results = controller.auto_generate(count, gen_type, custom)

@@ -127,26 +127,26 @@ def api_upload_workflow():
     """上传工作流"""
     if 'file' not in request.files:
         return jsonify({"error": "没有文件"}), 400
-    
+
     file = request.files['file']
     name = request.form.get('name', file.filename)
     category = request.form.get('category', 'custom')
     description = request.form.get('description', '')
-    
+
     # 保存临时文件
     temp_path = Path(f"/tmp/{file.filename}")
     file.save(temp_path)
-    
+
     result = workflow_manager.upload_workflow(
         str(temp_path),
         name=name,
         category=category,
         description=description
     )
-    
+
     # 清理临时文件
     temp_path.unlink()
-    
+
     return jsonify(result)
 
 
@@ -176,7 +176,7 @@ def api_execute_workflow(workflow_id):
     cfg = data.get('cfg', 7)
     width = data.get('width', 512)
     height = data.get('height', 512)
-    
+
     result = auto_runner.run_workflow(
         workflow_id,
         prompt=prompt,
@@ -186,7 +186,7 @@ def api_execute_workflow(workflow_id):
         width=width,
         height=height
     )
-    
+
     return jsonify(result)
 
 
@@ -210,34 +210,34 @@ def handle_monitor_task(data):
     """监控任务进度"""
     prompt_id = data.get('prompt_id')
     task_status[prompt_id] = {'status': 'running', 'progress': 0}
-    
+
     try:
         ws = websocket.WebSocket()
         ws.connect(f"ws://{COMFYUI_SERVER}/ws?clientId={client_id}", timeout=10)
-        
+
         while True:
             msg = json.loads(ws.recv())
             msg_type = msg.get('type')
             msg_data = msg.get('data', {})
-            
+
             if msg_type == 'progress':
                 step = msg_data.get('value', 0)
                 total = msg_data.get('max', 100)
                 percent = int(step / total * 100)
                 task_status[prompt_id] = {'status': 'running', 'progress': percent}
                 emit('progress', {'prompt_id': prompt_id, 'step': step, 'total': total, 'percent': percent})
-            
+
             elif msg_type == 'executing':
                 if msg_data.get('node') is None:
                     task_status[prompt_id] = {'status': 'completed', 'progress': 100}
                     emit('completed', {'prompt_id': prompt_id})
                     break
-            
+
             elif msg_type == 'execution_error':
                 task_status[prompt_id] = {'status': 'error', 'error': msg_data.get('message')}
                 emit('error', {'prompt_id': prompt_id, 'error': msg_data.get('message')})
                 break
-        
+
         ws.close()
     except Exception as e:
         task_status[prompt_id] = {'status': 'error', 'error': str(e)}
@@ -263,10 +263,10 @@ def api_batch_execute():
     workflow_ids = data.get('workflow_ids', [])
     prompts = data.get('prompts', [])
     params = data.get('params', {})
-    
+
     if not workflow_ids:
         return jsonify({"error": "没有指定工作流"}), 400
-    
+
     # 在后台线程中执行
     def run_batch():
         results = auto_runner.batch_run(
@@ -276,11 +276,11 @@ def api_batch_execute():
         )
         # 通过 WebSocket 通知完成
         socketio.emit('batch_completed', {'results': results})
-    
+
     thread = threading.Thread(target=run_batch)
     thread.daemon = True
     thread.start()
-    
+
     return jsonify({"status": "started", "count": len(workflow_ids)})
 
 
@@ -298,6 +298,6 @@ if __name__ == '__main__':
     print(f"   WebSocket: ws://0.0.0.0:5005/socket.io")
     print(f"   客户端 ID: {client_id}")
     print("\n按 Ctrl+C 停止服务器\n")
-    
+
     # 使用 socketio 运行（支持 WebSocket）
     socketio.run(app, host='0.0.0.0', port=5005, debug=False, allow_unsafe_werkzeug=True)

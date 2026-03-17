@@ -80,7 +80,7 @@ class NewsFetcher:
             {"topic": "人工智能", "prompt": "人工智能大会，机器人和高科技展示，未来感，科技创新"}
         ]
         return news_topics
-    
+
     @staticmethod
     def search_web(query):
         try:
@@ -92,12 +92,12 @@ class NewsFetcher:
 
 class PromptVariator:
     """提示词变体生成器"""
-    
+
     @staticmethod
     def generate_variations(base_prompt, count=5):
         """基于基础提示词生成多个变体"""
         variations = []
-        
+
         for i in range(count):
             # 随机选择变体元素
             style = random.choice(VARIATION_TEMPLATES["style"])
@@ -105,7 +105,7 @@ class PromptVariator:
             atmosphere = random.choice(VARIATION_TEMPLATES["atmosphere"])
             quality = random.choice(VARIATION_TEMPLATES["quality"])
             composition = random.choice(VARIATION_TEMPLATES["composition"])
-            
+
             # 组合变体
             variation = f"{base_prompt}, {style}, {lighting}, {atmosphere}, {composition}, {quality}"
             variations.append({
@@ -115,24 +115,24 @@ class PromptVariator:
                 "lighting": lighting,
                 "atmosphere": atmosphere
             })
-        
+
         return variations
-    
+
     @staticmethod
     def generate_from_news(news_list, count=5):
         """基于新闻列表生成多个不同提示词"""
         variations = []
-        
+
         for i in range(count):
             # 选择不同的新闻
             news = news_list[i % len(news_list)]
             base = news.get("prompt", news.get("topic", ""))
-            
+
             # 添加变体元素
             style = random.choice(VARIATION_TEMPLATES["style"])
             lighting = random.choice(VEMPLATES["lighting"])
             atmosphere = random.choice(VARIATION_TEMPLATES["atmosphere"])
-            
+
             variation = f"{base}, {style}, {lighting}, {atmosphere}, news illustration style, professional, high quality"
             variations.append({
                 "variant_id": i + 1,
@@ -140,30 +140,30 @@ class PromptVariator:
                 "news_topic": news.get("topic", "custom"),
                 "style": style
             })
-        
+
         return variations
-    
+
     @staticmethod
     def generate_from_search(search_terms, count=5):
         """基于搜索关键词生成多个不同提示词"""
         variations = []
-        
+
         for i in range(count):
             # 使用不同的搜索词组合
             terms = search_terms if isinstance(search_terms, list) else [search_terms]
             base = random.choice(terms)
-            
+
             # 添加不同的场景和元素
             scenes = ["daytime scene", "night scene", "sunset scene", "morning light", "evening atmosphere"]
             elements = ["detailed background", "focusing on subject", "environmental context", "atmospheric perspective", "dynamic composition"]
-            
+
             variation = f"{base}, {random.choice(scenes)}, {random.choice(elements)}, {random.choice(VARIATION_TEMPLATES['style'])}, {random.choice(VARIATION_TEMPLATES['quality'])}"
             variations.append({
                 "variant_id": i + 1,
                 "prompt": variation,
                 "base_term": base
             })
-        
+
         return variations
 
 class ComfyUIManager:
@@ -172,7 +172,7 @@ class ComfyUIManager:
         self.client_id = str(uuid.uuid4())
         self.available_models = {"unet": [], "clip": [], "vae": [], "checkpoints": []}
         self.scan_models()
-    
+
     def scan_models(self):
         try:
             resp = requests.get(f"{self.base_url}/object_info", timeout=10)
@@ -191,7 +191,7 @@ class ComfyUIManager:
                 print(f"✅ 扫描到 {len(self.available_models['unet'])} UNet, {len(self.available_models['clip'])} CLIP")
         except Exception as e:
             print(f"❌ 扫描失败：{e}")
-    
+
     def get_queue(self):
         try:
             resp = requests.get(f"{self.base_url}/queue", timeout=5)
@@ -199,7 +199,7 @@ class ComfyUIManager:
                 return resp.json()
         except: pass
         return {"queue_running": [], "queue_pending": []}
-    
+
     def is_busy(self):
         q = self.get_queue()
         return len(q.get("queue_running", [])) > 0 or len(q.get("queue_pending", [])) > 0
@@ -365,12 +365,12 @@ class Handler(SimpleHTTPRequestHandler):
         else:
             self.send_response(404)
             self.end_headers()
-    
+
     def do_POST(self):
         if self.path == '/api/start':
             length = int(self.headers['Content-Length'])
             data = json.loads(self.rfile.read(length).decode())
-            
+
             size_info = next((s for s in SIZE_OPTIONS if s[0] == data.get('size', '1024x512')), SIZE_OPTIONS[6])
             w, h = size_info[1], size_info[2]
             base_prompt = data.get('prompt', '')
@@ -381,12 +381,12 @@ class Handler(SimpleHTTPRequestHandler):
             vae = manager.available_models['vae'][0] if manager.available_models['vae'] else 'ae.safetensors'
             enable_variants = data.get('enable_variants', True)
             search_query = data.get('search_query', '')
-            
+
             # 生成变体提示词
             if enable_variants:
                 # 从基础提示词分割多个提示
                 base_prompts = [p.strip() for p in base_prompt.split(';') if p.strip()]
-                
+
                 if len(base_prompts) > 1:
                     # 多个基础提示词，直接使用
                     variations = [{"variant_id": i+1, "prompt": p, "style": "custom"} for i, p in enumerate(base_prompts)]
@@ -402,12 +402,12 @@ class Handler(SimpleHTTPRequestHandler):
             else:
                 # 不使用变体，所有任务相同提示词
                 variations = [{"variant_id": i+1, "prompt": base_prompt, "style": "same"} for i in range(data['count'])]
-            
+
             controller.tasks = []
             for i, var in enumerate(variations[:data['count']]):
                 # 组合最终提示词
                 final_prompt = f"{var['prompt']}, {extra}".strip() if extra else var['prompt']
-                
+
                 wf = {
                     "1": {"class_type": "UnetLoaderGGUF", "inputs": {"unet_name": model}},
                     "2": {"class_type": "CLIPLoader", "inputs": {"clip_name": clip, "type": "sd1x"}},
@@ -419,7 +419,7 @@ class Handler(SimpleHTTPRequestHandler):
                     "8": {"class_type": "VAEDecode", "inputs": {"samples": ["7", 0], "vae": ["3", 0]}},
                     "9": {"class_type": "SaveImage", "inputs": {"filename_prefix": "ComfyUI", "images": ["8", 0]}}
                 }
-                
+
                 task = {
                     "id": str(uuid.uuid4()),
                     "title": f"{data['mode']}_变体{i+1}",
@@ -431,19 +431,19 @@ class Handler(SimpleHTTPRequestHandler):
                     "variant_info": f"变体{i+1}: {var.get('style', 'custom')}"
                 }
                 controller.tasks.append(task)
-            
+
             self.send_json({'success': True, 'tasks': controller.tasks})
             threading.Thread(target=run_tasks, args=(data.get('interval', 20),), daemon=True).start()
         else:
             self.send_response(404)
             self.end_headers()
-    
+
     def send_json(self, d):
         self.send_response(200)
         self.send_header('Content-type', 'application/json')
         self.end_headers()
         self.wfile.write(json.dumps(d).encode())
-    
+
     def log_message(self, fmt, *args): pass
 
 class Controller:

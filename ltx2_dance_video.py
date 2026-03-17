@@ -37,26 +37,26 @@ def load_and_convert(prompt_text, negative, width=768, height=512, frames=97, se
     """加载并转换 LTX2 工作流"""
     with open(WORKFLOW_FILE, 'r') as f:
         wf = json.load(f)
-    
+
     nodes = wf.get('nodes', [])
     links = wf.get('links', [])
-    
+
     # 构建链接映射
     link_map = {}
     for link in links:
         link_id, src, src_slot, tgt, tgt_slot, _ = link
         link_map.setdefault(tgt, {})[tgt_slot] = [str(src), src_slot]
-    
+
     api_wf = {}
     for node in nodes:
         nid = str(node['id'])
         ntype = node['type']
         if ntype == 'Note':
             continue
-        
+
         inputs_raw = node.get('inputs', [])
         widgets = node.get('widgets_values', [])
-        
+
         # 跳过 Reroute 节点 - 需要重新映射链接
         if ntype == 'Reroute':
             # 找到连接到 Reroute 的节点，直接连到 Reroute 的输出
@@ -71,7 +71,7 @@ def load_and_convert(prompt_text, negative, width=768, height=512, frames=97, se
                                 if tgt_link[1] == int(nid):
                                     pass  # 需要复杂的重映射，简化处理：跳过
             continue
-        
+
         inputs_dict = {}
         # 处理链接
         for inp in inputs_raw:
@@ -93,7 +93,7 @@ def load_and_convert(prompt_text, negative, width=768, height=512, frames=97, se
                         break
                 if src_node:
                     inputs_dict[name] = [src_node, src_slot]
-        
+
         # 处理 widgets
         wi = 0
         for inp in inputs_raw:
@@ -101,29 +101,29 @@ def load_and_convert(prompt_text, negative, width=768, height=512, frames=97, se
             if inp.get('link') is None and wi < len(widgets):
                 inputs_dict[name] = widgets[wi]
                 wi += 1
-        
+
         api_wf[nid] = {'class_type': ntype, 'inputs': inputs_dict}
-    
+
     # 修改提示词 (节点 5 是正向，节点 6 是负向)
     if '5' in api_wf:
         api_wf['5']['inputs']['text'] = prompt_text
     if '6' in api_wf:
         api_wf['6']['inputs']['text'] = negative
-    
+
     # 修改尺寸 (节点 14)
     if '14' in api_wf:
         api_wf['14']['inputs']['width'] = width
         api_wf['14']['inputs']['height'] = height
         api_wf['14']['inputs']['length'] = frames
         api_wf['14']['inputs']['batch_size'] = 1
-    
+
     # 修改种子 (节点 16)
     if seed:
         if '16' in api_wf:
             api_wf['16']['inputs']['seed'] = seed
         if '32' in api_wf:
             api_wf['32']['inputs']['seed'] = seed
-    
+
     return api_wf
 
 
@@ -151,7 +151,7 @@ def wait(pid, timeout=600):
     print("⏳ 等待视频生成... (最多 10 分钟)")
     t0 = time.time()
     elapsed = 0
-    
+
     while time.time() - t0 < timeout:
         try:
             r = requests.get(f"http://{SERVER}/history/{pid}", timeout=5)
@@ -168,7 +168,7 @@ def wait(pid, timeout=600):
                                 e = m[1]
                                 print(f"❌ 节点{e.get('node_id')}: {e.get('exception_message', '')[:200]}")
                         return False
-                    
+
                     # 显示进度
                     curr = elapsed
                     elapsed = int(time.time() - t0)
@@ -177,7 +177,7 @@ def wait(pid, timeout=600):
         except:
             pass
         time.sleep(2)
-    
+
     print("⏰ 超时")
     return False
 
@@ -215,25 +215,25 @@ def download_video(pid, title):
 def generate(scenario, idx):
     """生成单个视频"""
     cid = str(uuid.uuid4())
-    
+
     print(f"\n{'='*60}")
     print(f"[{idx}/{len(SCENARIOS)}] 生成：{scenario['title']}")
     print(f"{'='*60}")
     print(f"提示词：{scenario['prompt'][:80]}...")
-    
+
     seed = int(time.time() * 1000) % 1000000
     wf = load_and_convert(scenario['prompt'], scenario['negative'], 768, 512, 97, seed)
-    
+
     pid = queue(wf, cid)
     if not pid:
         return False
-    
+
     if wait(pid):
         fp = download_video(pid, scenario['title'])
         if fp:
             print(f"✅ '{scenario['title']}' 成功!")
             return True
-    
+
     print(f"⚠️ '{scenario['title']}' 失败")
     return False
 
@@ -243,7 +243,7 @@ def main():
     print("💃 LTX2 美女跳舞视频生成器")
     print("=" * 60)
     print()
-    
+
     print("🔍 检查 ComfyUI...")
     try:
         r = requests.get("http://127.0.0.1:8188/system_stats", timeout=5)
@@ -254,7 +254,7 @@ def main():
     except:
         print("❌ ComfyUI 未运行")
         return
-    
+
     print()
     print("📄 工作流：ltx2_t2v_gguf.json")
     print("🎯 模型：LTX-2-19B-Q3_K_S.gguf")
@@ -262,13 +262,13 @@ def main():
     print("🎬 帧数：97 帧 (约 4 秒@25fps)")
     print(f"📁 输出：{OUTPUT}/")
     print()
-    
+
     ok = 0
     for i, s in enumerate(SCENARIOS, 1):
         if generate(s, i):
             ok += 1
         time.sleep(5)  # 视频生成间隔长一些
-    
+
     print()
     print("=" * 60)
     print("📊 完成")

@@ -36,7 +36,7 @@ def create_workflow(prompt, negative, width=1024, height=512, seed=None):
     """创建工作流 - 完全复制官方配置"""
     if seed is None:
         seed = int(time.time() * 1000) % 1000000
-    
+
     # 官方 Z-Image-Turbo GGUF 工作流配置
     workflow = {
         "1": {
@@ -110,7 +110,7 @@ def create_workflow(prompt, negative, width=1024, height=512, seed=None):
             }
         }
     }
-    
+
     return workflow
 
 
@@ -122,7 +122,7 @@ def queue_prompt(api, client_id):
             json={"prompt": api, "client_id": client_id},
             timeout=30
         )
-        
+
         if response.status_code == 200:
             result = response.json()
             prompt_id = result.get('prompt_id')
@@ -151,7 +151,7 @@ def wait_for_completion(prompt_id, client_id, timeout=180):
     try:
         print(f"⏳ 等待生成完成...")
         start_time = time.time()
-        
+
         while time.time() - start_time < timeout:
             try:
                 response = requests.get(f"http://{SERVER}/history/{prompt_id}", timeout=5)
@@ -160,11 +160,11 @@ def wait_for_completion(prompt_id, client_id, timeout=180):
                     if prompt_id in history:
                         item = history[prompt_id]
                         status = item.get('status', {})
-                        
+
                         if status.get('completed', False):
                             print(f"✅ 生成完成!")
                             return True
-                        
+
                         if status.get('status_str') == 'error':
                             messages = status.get('messages', [])
                             for msg in messages:
@@ -175,7 +175,7 @@ def wait_for_completion(prompt_id, client_id, timeout=180):
             except:
                 pass
             time.sleep(2)
-        
+
         print(f"⏰ 超时")
         return False
     except Exception as e:
@@ -214,24 +214,24 @@ def download_image(prompt_id):
 def generate_image(scenario, index):
     """生成图片"""
     client_id = str(uuid.uuid4())
-    
+
     print(f"\n{'='*60}")
     print(f"[{index}/2] 生成：{scenario['title']}")
     print(f"{'='*60}")
     print(f"提示词：{scenario['prompt'][:80]}...")
-    
+
     workflow = create_workflow(scenario['prompt'], scenario['negative'], 1024, 512)
-    
+
     prompt_id = queue_prompt(workflow, client_id)
     if not prompt_id:
         return False
-    
+
     if wait_for_completion(prompt_id, client_id):
         filepath = download_image(prompt_id)
         if filepath:
             print(f"✅ '{scenario['title']}' 成功!")
             return True
-    
+
     print(f"⚠️ '{scenario['title']}' 失败")
     return False
 
@@ -241,7 +241,7 @@ def main():
     print("😂 搞笑美女图片生成器 (官方工作流版)")
     print("=" * 60)
     print()
-    
+
     print("🔍 检查 ComfyUI...")
     try:
         response = requests.get("http://127.0.0.1:8188/system_stats", timeout=5)
@@ -252,19 +252,19 @@ def main():
     except:
         print("❌ ComfyUI 未运行")
         return
-    
+
     print()
     print("📐 尺寸：1024x512")
     print("🎯 模型：Z-Image-Turbo-Q8_0.gguf")
     print(f"📁 输出：{OUTPUT}/")
     print()
-    
+
     success_count = 0
     for i, scenario in enumerate(SCENARIOS, 1):
         if generate_image(scenario, i):
             success_count += 1
         time.sleep(3)
-    
+
     print()
     print("=" * 60)
     print("📊 完成")

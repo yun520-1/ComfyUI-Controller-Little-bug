@@ -28,7 +28,7 @@ def create_ltx2_workflow(prompt, width=1024, height=512, seed=None):
     """创建 LTX2 工作流"""
     if seed is None:
         seed = int(time.time() * 1000) % (2**32)
-    
+
     workflow = {
         "3": {
             "class_type": "LTXVModelConfig",
@@ -97,7 +97,7 @@ def create_ltx2_workflow(prompt, width=1024, height=512, seed=None):
             }
         }
     }
-    
+
     return workflow
 
 
@@ -105,16 +105,16 @@ def generate_image(prompt, width=1024, height=512):
     """生成单张图片"""
     server_address = COMFYUI_SERVER
     client_id = str(uuid.uuid4())
-    
+
     # 创建工作流
     workflow = create_ltx2_workflow(prompt, width, height)
-    
+
     try:
         # 发送请求
         url = f"http://{server_address}/prompt"
         data = {"prompt": workflow, "client_id": client_id}
         response = requests.post(url, json=data, timeout=10)
-        
+
         if response.status_code == 200:
             result = response.json()
             prompt_id = result.get('prompt_id')
@@ -124,7 +124,7 @@ def generate_image(prompt, width=1024, height=512):
             print(f"❌ 请求失败：{response.status_code}")
             print(f"响应：{response.text[:500]}")
             return None
-            
+
     except Exception as e:
         print(f"❌ 错误：{e}")
         return None
@@ -134,7 +134,7 @@ def wait_for_completion(prompt_id, timeout=300):
     """等待生成完成"""
     start_time = time.time()
     print(f"⏳ 等待生成完成...")
-    
+
     while time.time() - start_time < timeout:
         try:
             response = requests.get(
@@ -149,7 +149,7 @@ def wait_for_completion(prompt_id, timeout=300):
         except:
             pass
         time.sleep(2)
-    
+
     print(f"⏰ 等待超时 ({timeout}秒)")
     return False
 
@@ -159,7 +159,7 @@ def main():
     print("🎨 LTX2 新闻图片生成器")
     print("=" * 60)
     print()
-    
+
     # 检查连接
     print("🔍 检查 ComfyUI 连接...")
     try:
@@ -174,24 +174,24 @@ def main():
         print("请启动 ComfyUI:")
         print("  cd ~/ComfyUI && python main.py")
         return
-    
+
     print()
-    
+
     # 新闻图片提示词
     prompts = [
         "professional news broadcast studio, modern TV anchor desk, breaking news banner, 4K ultra realistic, broadcast quality lighting, cinematic, highly detailed",
         "digital news headline background, futuristic screen display, latest news ticker, blue and red theme, professional broadcast studio, 4K, highly detailed"
     ]
-    
+
     print("📰 开始生成 2 张新闻图片...")
     print(f"📐 尺寸：1024x512")
     print(f"🎯 模型：LTX2 GGUF")
     print()
-    
+
     for i, prompt in enumerate(prompts, 1):
         print(f"[{i}/2] 生成第 {i} 张图片...")
         print(f"提示词：{prompt[:60]}...")
-        
+
         prompt_id = generate_image(prompt, width=1024, height=512)
         if prompt_id:
             if wait_for_completion(prompt_id):
@@ -200,9 +200,9 @@ def main():
                 print(f"⚠️ 第 {i} 张图片生成超时")
         else:
             print(f"❌ 第 {i} 张图片生成失败")
-        
+
         print()
-    
+
     print("=" * 60)
     print("📊 生成完成")
     print("=" * 60)

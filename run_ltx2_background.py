@@ -43,7 +43,7 @@ def build_api_prompt(workflow, prompt_text, negative_text):
     """
     nodes = workflow.get("nodes", [])
     links = workflow.get("links", [])
-    
+
     # 创建 link 查找表：link_id -> (src_node_id, src_output_slot, dst_node_id, dst_input_name)
     link_map = {}
     for link in links:
@@ -54,27 +54,27 @@ def build_api_prompt(workflow, prompt_text, negative_text):
             "dst_node": dst_node_id,
             "dst_input": dst_input
         }
-    
+
     # 创建节点查找表
     node_map = {str(node["id"]): node for node in nodes}
-    
+
     # 构建 API prompt
     api_prompt = {}
-    
+
     for node in nodes:
         node_id = str(node["id"])
         node_type = node.get("type", "")
-        
+
         # 跳过不需要提交的节点
         if node_type in ["Reroute", "Note", "PrimitiveNode", "GetImageSize", "LTXVCropGuides", "LTXVConcatAVLatent", "LTXVSeparateAVLatent", "LTXVLatentUpsampler", "SamplerCustomAdvanced", "LTXVConditioning", "LTXVEmptyLatentAudio", "LTXVAudioVAEDecode", "LTXVConcatAVLatent"]:
             continue
-        
+
         # 获取 widget 值
         widgets = node.get("widgets_values", [])
-        
+
         # 构建 inputs
         inputs = {}
-        
+
         # 1. 处理 widget 值作为 inputs
         if node_type == "CLIPTextEncode":
             if widgets and isinstance(widgets[0], str):
@@ -136,17 +136,17 @@ def build_api_prompt(workflow, prompt_text, negative_text):
             inputs["temporal_overlap"] = widgets[3] if len(widgets) > 3 else 8
         elif node_type == "LatentUpscaleModelLoader":
             inputs["model_name"] = widgets[0] if len(widgets) > 0 else "ltx-2-spatial-upscaler-x2-1.0.safetensors"
-        
+
         # 2. 处理节点输入连接
         for inp in node.get("inputs", []):
             input_name = inp.get("name", "input")
             link_id = inp.get("link")
-            
+
             if link_id and link_id in link_map:
                 link_info = link_map[link_id]
                 src_node_id = link_info["src_node"]
                 src_output = link_info["src_output"]
-                
+
                 # 跳过 Reroute，找到实际源节点
                 src_node = node_map.get(src_node_id, {})
                 if src_node.get("type") == "Reroute":
@@ -158,16 +158,16 @@ def build_api_prompt(workflow, prompt_text, negative_text):
                             src_node_id = r_link["src_node"]
                             src_output = r_link["src_output"]
                             break
-                
+
                 # 添加连接
                 inputs[input_name] = [src_node_id, src_output]
-        
+
         # 添加到 api_prompt
         api_prompt[node_id] = {
             "class_type": node_type,
             "inputs": inputs
         }
-    
+
     return api_prompt
 
 
@@ -179,7 +179,7 @@ def queue_prompt(api_prompt, client_id):
             json={"prompt": api_prompt, "client_id": client_id},
             timeout=30
         )
-        
+
         if resp.status_code == 200:
             data = resp.json()
             prompt_id = data.get('prompt_id')
@@ -202,25 +202,25 @@ def monitor_progress(prompt_id, client_id, timeout=600):
     try:
         ws = websocket.WebSocket()
         ws.connect(f"ws://{COMFYUI_SERVER}/ws?clientId={client_id}", timeout=10)
-        
+
         print(f"⏳ 视频生成中...", end=" ", flush=True)
         start_time = time.time()
         last_percent = -1
         last_msg_time = time.time()
-        
+
         while time.time() - start_time < timeout:
             elapsed = time.time() - start_time
-            
+
             # 每 30 秒显示一次时间
             if time.time() - last_msg_time > 30:
                 print(f"{int(elapsed/60)}分钟", end=" ", flush=True)
                 last_msg_time = time.time()
-            
+
             try:
                 msg = json.loads(ws.recv())
                 msg_type = msg.get('type')
                 data = msg.get('data', {})
-                
+
                 if msg_type == 'progress':
                     step = data.get('value', 0)
                     total = data.get('max', 100)
@@ -236,12 +236,12 @@ def monitor_progress(prompt_id, client_id, timeout=600):
                 elif msg_type == 'executed':
                     ws.close()
                     return True
-                    
+
             except websocket.WebSocketTimeoutException:
                 continue
             except Exception:
                 continue
-        
+
         ws.close()
         print("⏰ 超时")
         return False
@@ -255,14 +255,14 @@ def download_result(prompt_id, news_title):
     try:
         resp = requests.get(f"http://{COMFYUI_SERVER}/history/{prompt_id}", timeout=10)
         history = resp.json()
-        
+
         if prompt_id not in history:
             print("❌ 未找到历史记录")
             return []
-        
+
         outputs = history[prompt_id].get('outputs', {})
         downloaded = []
-        
+
         for node_id, output in outputs.items():
             # 视频
             if 'video' in output:
@@ -273,20 +273,20 @@ def download_result(prompt_id, news_title):
                         vtype = vid.get('type', 'output')
                         params = f"?filename={filename}&subfolder={subfolder}&type={vtype}"
                         url = f"http://{COMFYUI_SERVER}/view{params}"
-                        
+
                         print(f"  📥 下载视频...")
                         resp = requests.get(url, timeout=120)
                         if resp.status_code == 200:
                             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
                             safe_title = news_title.replace(" ", "_")
                             filepath = OUTPUT_DIR / f"{ts}_{safe_title}.mp4"
-                            
+
                             with open(filepath, 'wb') as f:
                                 f.write(resp.content)
-                            
+
                             print(f"  ✅ 视频已保存：{filepath.name}")
                             downloaded.append(str(filepath))
-                            
+
                             # 元数据
                             meta = {
                                 "title": news_title,
@@ -297,7 +297,7 @@ def download_result(prompt_id, news_title):
                             }
                             with open(filepath.with_suffix('.json'), 'w', encoding='utf-8') as f:
                                 json.dump(meta, f, indent=2, ensure_ascii=False)
-            
+
             # 图片
             if 'images' in output:
                 for img in output['images']:
@@ -307,19 +307,19 @@ def download_result(prompt_id, news_title):
                         itype = img.get('type', 'output')
                         params = f"?filename={filename}&subfolder={subfolder}&type={itype}"
                         url = f"http://{COMFYUI_SERVER}/view{params}"
-                        
+
                         resp = requests.get(url, timeout=30)
                         if resp.status_code == 200:
                             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
                             safe_title = news_title.replace(" ", "_")
                             filepath = OUTPUT_DIR / f"{ts}_{safe_title}_{filename}"
-                            
+
                             with open(filepath, 'wb') as f:
                                 f.write(resp.content)
-                            
+
                             print(f"  ✅ 图片：{filepath.name}")
                             downloaded.append(str(filepath))
-        
+
         return downloaded
     except Exception as e:
         print(f"❌ 下载失败：{e}")
@@ -332,32 +332,32 @@ def generate(topic, index, total):
     print(f"[{index}/{total}] 📰 新闻：{topic['title']}")
     print(f"🎨 提示词：{topic['prompt'][:50]}...")
     print(f"{'='*70}")
-    
+
     # 加载工作流
     print(f"\n📋 加载工作流...")
     workflow = load_workflow_json()
     print(f"   工作流 ID: {workflow.get('id', 'N/A')[:20]}...")
     print(f"   节点数：{workflow.get('last_node_id', 0)}")
-    
+
     # 构建 API prompt
     print(f"\n🔄 转换工作流格式...")
     api_prompt = build_api_prompt(workflow, topic['prompt'], topic['negative'])
     print(f"   API 节点数：{len(api_prompt)}")
-    
+
     # 提交
     client_id = str(uuid.uuid4())
     print(f"\n🚀 提交任务...")
     prompt_id = queue_prompt(api_prompt, client_id)
     if not prompt_id:
         return {"success": False, "error": "提交失败", "title": topic['title']}
-    
+
     # 监控
     if not monitor_progress(prompt_id, client_id):
         return {"success": False, "error": "生成失败", "title": topic['title']}
-    
+
     # 下载
     files = download_result(prompt_id, topic['title'])
-    
+
     return {
         "success": len(files) > 0,
         "files": files,
@@ -371,7 +371,7 @@ def main():
     print("📅 2026 年 3 月最新新闻")
     print("🤖 模型：LTX-2-19B-GGUF (Q3_K_S)")
     print("="*70)
-    
+
     # 检查连接
     try:
         resp = requests.get(f"http://{COMFYUI_SERVER}/system_stats", timeout=5)
@@ -383,22 +383,22 @@ def main():
     except Exception as e:
         print(f"❌ 无法连接 ComfyUI: {e}")
         return 1
-    
+
     # 显示主题
     print(f"\n📋 新闻主题 ({len(NEWS_TOPICS)}个):")
     for i, t in enumerate(NEWS_TOPICS, 1):
         print(f"  {i}. {t['title']}")
-    
+
     # 选择模式
     print(f"\n请选择生成模式:")
     print(f"  1. 生成所有 ({len(NEWS_TOPICS)}个，约 10-25 分钟)")
     print(f"  2. 生成单个")
     print(f"  3. 测试第一个")
-    
+
     choice = input("\n请输入选择 (1/2/3): ").strip()
-    
+
     results = []
-    
+
     if choice == '1':
         print(f"\n🚀 开始批量生成所有新闻视频...")
         for i, topic in enumerate(NEWS_TOPICS, 1):
@@ -420,7 +420,7 @@ def main():
     else:
         print("无效选择")
         return 1
-    
+
     # 汇总
     print(f"\n{'='*70}")
     print("📊 生成结果汇总")
@@ -428,7 +428,7 @@ def main():
     success = sum(1 for r in results if r.get('success'))
     print(f"✅ 成功：{success}/{len(results)}")
     print(f"💾 目录：{OUTPUT_DIR}")
-    
+
     # 保存报告
     report = {
         "timestamp": datetime.now().isoformat(),
@@ -440,12 +440,12 @@ def main():
     with open(report_file, 'w', encoding='utf-8') as f:
         json.dump(report, f, indent=2, ensure_ascii=False)
     print(f"📄 报告：{report_file}")
-    
+
     if success > 0:
         print(f"\n🎉 生成完成！ComfyUI 保持运行状态")
     else:
         print(f"\n⚠️  生成失败，请检查 ComfyUI 日志")
-    
+
     return 0
 
 

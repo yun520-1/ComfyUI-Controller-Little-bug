@@ -25,50 +25,50 @@ TOPICS = [
 def create_minimal_api(prompt, negative):
     """创建最小化的 LTX2 API 工作流"""
     seed = int(time.time() * 1000) % 1000000
-    
+
     return {
         # 1. UNet 加载
         "1": {"class_type": "UnetLoaderGGUF", "inputs": {"unet_name": "ltx-2-19b-dev-Q3_K_S.gguf"}},
-        
+
         # 2. CLIP 加载 (DualCLIPLoaderGGUF for LTXV)
         "2": {"class_type": "DualCLIPLoaderGGUF", "inputs": {"clip_name1": "gemma-3-12b-it-qat-Q3_K_S.gguf", "clip_name2": "Qwen3-4B-Q8_0.gguf", "type": "ltxv"}},
-        
+
         # 3. VAE 加载
         "3": {"class_type": "VAELoader", "inputs": {"vae_name": "ltx-2-19b-dev_video_vae.safetensors"}},
-        
+
         # 4. 正向提示词
         "4": {"class_type": "CLIPTextEncode", "inputs": {"clip": ["2", 0], "text": prompt}},
-        
+
         # 5. 负面提示词
         "5": {"class_type": "CLIPTextEncode", "inputs": {"clip": ["2", 0], "text": negative}},
-        
+
         # 6. 空潜视频
         "6": {"class_type": "EmptyLTXVLatentVideo", "inputs": {"width": 768, "height": 512, "length": 97, "batch_size": 1}},
-        
+
         # 7. LTXV 条件
         "7": {"class_type": "LTXVConditioning", "inputs": {"positive": ["4", 0], "negative": ["5", 0], "frame_rate": 25.0}},
-        
+
         # 8. 噪声
         "8": {"class_type": "RandomNoise", "inputs": {"noise_seed": seed}},
-        
+
         # 9. 采样器
         "9": {"class_type": "KSamplerSelect", "inputs": {"sampler_name": "euler_ancestral"}},
-        
+
         # 10. 调度器
         "10": {"class_type": "LTXVScheduler", "inputs": {"steps": 31, "max_shift": 2.05, "base_shift": 0.95, "stretch": True, "terminal": 0.1, "latent": ["6", 0]}},
-        
+
         # 11. CFG Guider
         "11": {"class_type": "CFGGuider", "inputs": {"model": ["1", 0], "positive": ["7", 0], "negative": ["7", 1], "cfg": 4.0}},
-        
+
         # 12. 采样
         "12": {"class_type": "SamplerCustomAdvanced", "inputs": {"noise": ["8", 0], "guider": ["11", 0], "sampler": ["9", 0], "sigmas": ["10", 0], "latent_image": ["6", 0]}},
-        
+
         # 13. VAE 解码
         "13": {"class_type": "VAEDecodeTiled", "inputs": {"samples": ["12", 0], "vae": ["3", 0], "tile_size": 512, "overlap": 64, "temporal_size": 4096, "temporal_overlap": 8}},
-        
+
         # 14. 创建视频
         "14": {"class_type": "CreateVideo", "inputs": {"images": ["13", 0], "fps": 25.0}},
-        
+
         # 15. 保存视频
         "15": {"class_type": "SaveVideo", "inputs": {"video": ["14", 0], "filename_prefix": f"Xianxia_{datetime.now().strftime('%Y%m%d_%H%M%S')}", "format": "mp4", "codec": "h264"}}
     }
@@ -96,7 +96,7 @@ def monitor(pid, cid, timeout=600):
         print("⏳ ", end="", flush=True)
         start = time.time()
         last_pct = -1
-        
+
         while time.time() - start < timeout:
             try:
                 msg = json.loads(ws.recv())
@@ -125,10 +125,10 @@ def download(pid, title):
         if pid not in h:
             print("❌ 无历史记录")
             return []
-        
+
         outs = h[pid].get('outputs', {})
         dl = []
-        
+
         for nid, out in outs.items():
             for k, items in [('video', out.get('video', [])), ('images', out.get('images', []))]:
                 for it in items:
@@ -144,7 +144,7 @@ def download(pid, title):
                                 f.write(r2.content)
                             print(f"  ✅ {fp.name}")
                             dl.append(str(fp))
-                            
+
                             # 元数据
                             meta = {"title": title, "timestamp": datetime.now().isoformat(), "model": "LTX-2-19B", "style": "xianxia"}
                             with open(fp.with_suffix('.json'), 'w', encoding='utf-8') as f:
@@ -160,21 +160,21 @@ def generate(topic, idx, total):
     print(f"[{idx}/{total}] 📰 {topic['title']}")
     print(f"📝 {topic['prompt'][:50]}...")
     print(f"{'='*60}")
-    
+
     # 创建 API 工作流
     api = create_minimal_api(topic['prompt'], topic['negative'])
     print(f"📋 API 节点：{len(api)}")
-    
+
     # 提交
     cid = str(uuid.uuid4())
     pid = queue(api, cid)
     if not pid:
         return {"success": False, "error": "提交失败", "title": topic['title']}
-    
+
     # 监控
     if not monitor(pid, cid):
         return {"success": False, "error": "超时", "title": topic['title']}
-    
+
     # 下载
     files = download(pid, topic['title'])
     return {"success": len(files) > 0, "files": files, "title": topic['title']}
@@ -184,7 +184,7 @@ def main():
     print("🎬 LTX2 仙人古装新闻视频 - 自动运行")
     print("📅 2026 年 3 月最新新闻")
     print("="*60)
-    
+
     # 检查连接
     try:
         r = requests.get(f"http://{SERVER}/system_stats", timeout=5)
@@ -192,7 +192,7 @@ def main():
     except:
         print(f"❌ 无法连接：{SERVER}")
         return 1
-    
+
     # 检查模型
     print("\n🔍 模型检查:")
     models = [
@@ -203,20 +203,20 @@ def main():
     for name, path in models:
         p = Path("/Users/apple/Documents/lmd_data_root/apps/ComfyUI/models") / ("unet" if name == "unet" else "text_encoders" if name == "clip" else "vae") / path
         print(f"  {'✅' if p.exists() else '❌'} {name}")
-    
+
     # 显示主题
     print(f"\n📋 主题 ({len(TOPICS)}个):")
     for i, t in enumerate(TOPICS, 1):
         print(f"  {i}. {t['title']}")
-    
+
     # 询问模式
     print(f"\n请选择:")
     print(f"  1. 生成所有 ({len(TOPICS)}个，约 10-25 分钟)")
     print(f"  2. 生成单个")
     print(f"  3. 测试第一个")
-    
+
     c = input("\n输入 (1/2/3): ").strip()
-    
+
     topics = []
     if c == '1':
         topics = TOPICS
@@ -225,11 +225,11 @@ def main():
         topics = [TOPICS[idx-1]] if 1 <= idx <= 5 else []
     elif c == '3':
         topics = [TOPICS[0]]
-    
+
     if not topics:
         print("❌ 无效选择")
         return 1
-    
+
     # 生成
     print(f"\n🚀 开始生成...")
     results = []
@@ -238,7 +238,7 @@ def main():
         if i < len(topics):
             print("\n⏸️  等待 5 秒...")
             time.sleep(5)
-    
+
     # 汇总
     print(f"\n{'='*60}")
     print("📊 结果汇总")
@@ -246,17 +246,17 @@ def main():
     ok = sum(1 for r in results if r.get('success'))
     print(f"✅ 成功：{ok}/{len(results)}")
     print(f"💾 {OUTPUT}")
-    
+
     # 报告
     report = {"timestamp": datetime.now().isoformat(), "total": len(results), "success": ok, "results": results}
     report_file = OUTPUT / f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     with open(report_file, 'w', encoding='utf-8') as f:
         json.dump(report, f, indent=2, ensure_ascii=False)
     print(f"📄 {report_file}")
-    
+
     if ok > 0:
         print(f"\n🎉 生成完成！")
-    
+
     return 0
 
 if __name__ == "__main__":
