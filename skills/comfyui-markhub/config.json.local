@@ -1,0 +1,60 @@
+{
+  "platform": {
+    "type": "auto",
+    "custom": {
+      "base_url": "https://wp08.unicorn.org.cn:40001",
+      "verify_ssl": false,
+      "api_token": null
+    },
+    "runpod": {
+      "pod_id": "",
+      "api_token": ""
+    },
+    "vast": {
+      "instance_id": "",
+      "api_token": ""
+    },
+    "massed": {
+      "base_url": "https://massedcompute.com:40001",
+      "verify_ssl": false
+    },
+    "thinkingmachines": {
+      "base_url": "https://api.thinkingmachines.ai/comfyui",
+      "api_token": ""
+    },
+    "local": {
+      "base_url": "http://127.0.0.1:8188",
+      "verify_ssl": false
+    }
+  },
+  "comfyui": {
+    "base_url": "https://wp08.unicorn.org.cn:40001",
+    "verify_ssl": false,
+    "timeout": 300,
+    "max_retries": 3,
+    "api_token": null
+  },
+  "output": {
+    "images": "~/Pictures/MarkHub",
+    "videos": "~/Videos/MarkHub",
+    "save_meta": true,
+    "organize_by_date": true
+  },
+  "watcher": {
+    "enabled": true,
+    "timeout": 600,
+    "poll_interval": 5,
+    "auto_retry": true
+  },
+  "optimizer": {
+    "auto_resolution": true,
+    "auto_steps": true,
+    "auto_cfg": true,
+    "quality_preset": "balanced"
+  },
+  "platforms": {
+    "auto_detect": true,
+    "fallback_order": ["custom", "local"],
+    "health_check_interval": 60
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "_comment": "ComfyUI MarkHub v1.1 Configuration - Example File",
+  "_note": "Copy this file to config.json and fill in your actual values",
+  
+  "platform": {
+    "type": "auto",
+    "_comment": "Available platforms: auto/custom/runpod/vast/massed/thinkingmachines/local",
+    "custom": {
+      "base_url": "YOUR_COMFYUI_URL",
+      "verify_ssl": false,
+      "api_token": null
+    },
+    "runpod": {
+      "pod_id": "YOUR_POD_ID",
+      "api_token": "YOUR_RUNPOD_API_KEY"
+    },
+    "vast": {
+      "instance_id": "YOUR_INSTANCE_ID",
+      "api_token": "YOUR_VAST_API_KEY"
+    },
+    "massed": {
+      "base_url": "https://massedcompute.com:40001",
+      "verify_ssl": false
+    },
+    "thinkingmachines": {
+      "base_url": "https://api.thinkingmachines.ai/comfyui",
+      "api_token": "YOUR_API_TOKEN"
+    },
+    "local": {
+      "base_url": "http://127.0.0.1:8188",
+      "verify_ssl": false
+    }
+  },
+  
+  "comfyui": {
+    "base_url": "http://127.0.0.1:8188",
+    "verify_ssl": false,
+    "timeout": 300,
+    "max_retries": 3,
+    "api_token": null
+  },
+  
+  "output": {
+    "images": "~/Pictures/MarkHub",
+    "videos": "~/Videos/MarkHub",
+    "save_meta": true,
+    "organize_by_date": true
+  },
+  
+  "watcher": {
+    "enabled": true,
+    "timeout": 600,
+    "poll_interval": 5,
+    "auto_retry": true
+  },
+  
+  "optimizer": {
+    "auto_resolution": true,
+    "auto_steps": true,
+    "auto_cfg": true,
+    "quality_preset": "balanced"
+  },
+  
+  "platforms": {
+    "auto_detect": true,
+    "fallback_order": ["custom", "local"],
+    "health_check_interval": 60
+  }
+}

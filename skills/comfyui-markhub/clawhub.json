@@ -1,0 +1,92 @@
+{
+  "name": "comfyui-markhub",
+  "version": "1.1.0",
+  "description": "Universal AI Creation System - Support for all major ComfyUI cloud platforms (RunPod, Vast.ai, Massed, Thinking Machines, Local)",
+  "description_zh": "全平台智能创作系统 - 支持所有主流 ComfyUI 云平台 (RunPod, Vast.ai, Massed, Thinking Machines, 本地)",
+  "author": "yun520-1",
+  "license": "MIT",
+  "keywords": [
+    "comfyui",
+    "ai-art",
+    "image-generation",
+    "video-generation",
+    "cloud-platform",
+    "runpod",
+    "vast-ai",
+    "stable-diffusion",
+    "ai-creation"
+  ],
+  "homepage": "https://github.com/yun520-1/comfyui-markhub",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yun520-1/comfyui-markhub.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yun520-1/comfyui-markhub/issues"
+  },
+  "main": "markhub_core.py",
+  "scripts": {
+    "install": "bash install.sh",
+    "test": "python3 markhub_core.py -p \"test\" --list-platforms"
+  },
+  "dependencies": {
+    "python_packages": [
+      "requests",
+      "websocket-client",
+      "Pillow"
+    ],
+    "bins": [
+      "python3",
+      "curl"
+    ]
+  },
+  "files": [
+    "markhub_core.py",
+    "install.sh",
+    "config.example.json",
+    "SKILL.md",
+    "README.md",
+    "README_EN.md",
+    "PLATFORM_GUIDE.md",
+    "platforms.md",
+    "LICENSE"
+  ],
+  "platforms": [
+    "custom",
+    "runpod",
+    "vast",
+    "massed",
+    "thinkingmachines",
+    "local"
+  ],
+  "features": [
+    "Multi-platform support (6+ platforms)",
+    "Auto platform detection",
+    "Automatic failover",
+    "Task monitoring",
+    "Auto save to local",
+    "Smart workflow selection",
+    "Multi-language docs (CN/EN)"
+  ],
+  "usage": {
+    "image": "python3 markhub_core.py -p \"A beautiful woman, cinematic lighting, 4k\"",
+    "video": "python3 markhub_core.py -p \"A woman dancing\" --video --duration 10",
+    "auto": "python3 markhub_core.py -p \"A cat playing\" --auto"
+  },
+  "changelog": {
+    "1.1.0": [
+      "Added support for 6+ platforms",
+      "Auto platform detection",
+      "Failover mechanism",
+      "Unified authentication",
+      "Multi-language documentation"
+    ],
+    "1.0.0": [
+      "Initial release",
+      "Cloud platform integration",
+      "Smart workflow selection",
+      "Task monitoring",
+      "Auto save feature"
+    ]
+  }
+}
